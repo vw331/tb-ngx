@@ -17,7 +17,6 @@
 import {
   IWidgetSubscription,
   SubscriptionEntityInfo,
-  SubscriptionMessage,
   WidgetSubscriptionCallbacks,
   WidgetSubscriptionContext,
   WidgetSubscriptionOptions
@@ -44,26 +43,17 @@ import {
   toHistoryTimewindow,
   WidgetTimewindow
 } from '@app/shared/models/time/time.models';
-import { forkJoin, Observable, of, ReplaySubject, Subject, throwError } from 'rxjs';
+import { Observable, ReplaySubject, Subject, throwError } from 'rxjs';
 import { CancelAnimationFrame } from '@core/services/raf.service';
 import { EntityType } from '@shared/models/entity-type.models';
-import { createLabelFromDatasource, deepClone, isDefined, isEqual } from '@core/utils';
+import { AlarmInfo, AlarmSearchStatus } from '@shared/models/alarm.models';
+import { deepClone, isDefined, isEqual } from '@core/utils';
+import { AlarmSourceListener } from '@core/http/alarm.service';
+import { DatasourceListener } from '@core/api/datasource.service';
 import { EntityId } from '@app/shared/models/id/entity-id';
+import { DataKeyType } from '@shared/models/telemetry/telemetry.models';
+import { entityFields } from '@shared/models/entity.models';
 import * as moment_ from 'moment';
-import { emptyPageData, PageData } from '@shared/models/page/page-data';
-import { EntityDataListener } from '@core/api/entity-data.service';
-import {
-  AlarmData,
-  AlarmDataPageLink,
-  EntityData,
-  EntityDataPageLink,
-  entityDataToEntityInfo,
-  EntityKeyType,
-  KeyFilter,
-  updateDatasourceFromEntityInfo
-} from '@shared/models/query/query.models';
-import { map } from 'rxjs/operators';
-import { AlarmDataListener } from '@core/api/alarm-data.service';
 
 const moment = moment_;
 
@@ -80,17 +70,9 @@ export class WidgetSubscription implements IWidgetSubscription {
   subscriptionTimewindow: SubscriptionTimewindow;
   useDashboardTimewindow: boolean;
 
-  hasDataPageLink: boolean;
-  singleEntity: boolean;
-  warnOnPageDataOverflow: boolean;
-
-  datasourcePages: PageData<Datasource>[];
-  dataPages: PageData<Array<DatasourceData>>[];
-  entityDataListeners: Array<EntityDataListener>;
-  configuredDatasources: Array<Datasource>;
-
   data: Array<DatasourceData>;
   datasources: Array<Datasource>;
+  datasourceListeners: Array<DatasourceListener>;
   hiddenData: Array<DataSetHolder>;
   legendData: LegendData;
   legendConfig: LegendConfig;
@@ -104,9 +86,26 @@ export class WidgetSubscription implements IWidgetSubscription {
   comparisonTimeWindow: WidgetTimewindow;
   timewindowForComparison: SubscriptionTimewindow;
 
-  alarms: PageData<AlarmData>;
+  alarms: Array<AlarmInfo>;
   alarmSource: Datasource;
-  alarmDataListener: AlarmDataListener;
+
+  private alarmSearchStatusValue: AlarmSearchStatus;
+
+  set alarmSearchStatus(value: AlarmSearchStatus) {
+    if (this.alarmSearchStatusValue !== value) {
+      this.alarmSearchStatusValue = value;
+      this.onAlarmSearchStatusChanged();
+    }
+  }
+
+  get alarmSearchStatus(): AlarmSearchStatus {
+    return this.alarmSearchStatusValue;
+  }
+
+  alarmsPollingInterval: number;
+  alarmsMaxCountLoad: number;
+  alarmsFetchSize: number;
+  alarmSourceListener: AlarmSourceListener;
 
   loadingData: boolean;
 
@@ -127,8 +126,6 @@ export class WidgetSubscription implements IWidgetSubscription {
   targetDeviceId: string;
   targetDeviceName: string;
   executingSubjects: Array<Subject<any>>;
-
-  subscribed = false;
 
   constructor(subscriptionContext: WidgetSubscriptionContext, public options: WidgetSubscriptionOptions) {
     const subscriptionSubject = new ReplaySubject<IWidgetSubscription>();
@@ -162,12 +159,19 @@ export class WidgetSubscription implements IWidgetSubscription {
     } else if (this.type === widgetType.alarm) {
       this.callbacks.onDataUpdated = this.callbacks.onDataUpdated || (() => {});
       this.callbacks.onDataUpdateError = this.callbacks.onDataUpdateError || (() => {});
-      this.callbacks.onSubscriptionMessage = this.callbacks.onSubscriptionMessage || (() => {});
       this.callbacks.dataLoading = this.callbacks.dataLoading || (() => {});
       this.callbacks.timeWindowUpdated = this.callbacks.timeWindowUpdated || (() => {});
       this.alarmSource = options.alarmSource;
-      this.alarmDataListener = null;
-      this.alarms = emptyPageData();
+      this.alarmSearchStatusValue = isDefined(options.alarmSearchStatus) ?
+        options.alarmSearchStatus : AlarmSearchStatus.ANY;
+      this.alarmsPollingInterval = isDefined(options.alarmsPollingInterval) ?
+        options.alarmsPollingInterval : 5000;
+      this.alarmsMaxCountLoad = isDefined(options.alarmsMaxCountLoad) ?
+        options.alarmsMaxCountLoad : 0;
+      this.alarmsFetchSize = isDefined(options.alarmsFetchSize) ?
+        options.alarmsFetchSize : 100;
+      this.alarmSourceListener = null;
+      this.alarms = [];
       this.originalTimewindow = null;
       this.timeWindow = {};
       this.useDashboardTimewindow = options.useDashboardTimewindow;
@@ -189,20 +193,12 @@ export class WidgetSubscription implements IWidgetSubscription {
     } else {
       this.callbacks.onDataUpdated = this.callbacks.onDataUpdated || (() => {});
       this.callbacks.onDataUpdateError = this.callbacks.onDataUpdateError || (() => {});
-      this.callbacks.onSubscriptionMessage = this.callbacks.onSubscriptionMessage || (() => {});
-      this.callbacks.onInitialPageDataChanged = this.callbacks.onInitialPageDataChanged || (() => {});
       this.callbacks.dataLoading = this.callbacks.dataLoading || (() => {});
       this.callbacks.legendDataUpdated = this.callbacks.legendDataUpdated || (() => {});
       this.callbacks.timeWindowUpdated = this.callbacks.timeWindowUpdated || (() => {});
 
-      this.configuredDatasources = this.ctx.utils.validateDatasources(options.datasources);
-      this.entityDataListeners = [];
-      this.hasDataPageLink = options.hasDataPageLink;
-      this.singleEntity = options.singleEntity;
-      this.warnOnPageDataOverflow = options.warnOnPageDataOverflow;
-      this.datasourcePages = [];
-      this.datasources = [];
-      this.dataPages = [];
+      this.datasources = this.ctx.utils.validateDatasources(options.datasources);
+      this.datasourceListeners = [];
       this.data = [];
       this.hiddenData = [];
       this.originalTimewindow = null;
@@ -259,15 +255,15 @@ export class WidgetSubscription implements IWidgetSubscription {
     const initRpcSubject = new ReplaySubject();
     if (this.targetDeviceAliasIds && this.targetDeviceAliasIds.length > 0) {
       this.targetDeviceAliasId = this.targetDeviceAliasIds[0];
-      this.ctx.aliasController.resolveSingleEntityInfo(this.targetDeviceAliasId).subscribe(
-        (entityInfo) => {
-          if (entityInfo && entityInfo.entityType === EntityType.DEVICE) {
-            this.targetDeviceId = entityInfo.id;
-            this.targetDeviceName = entityInfo.name;
+      this.ctx.aliasController.getAliasInfo(this.targetDeviceAliasId).subscribe(
+        (aliasInfo) => {
+          if (aliasInfo.currentEntity && aliasInfo.currentEntity.entityType === EntityType.DEVICE) {
+            this.targetDeviceId = aliasInfo.currentEntity.id;
+            this.targetDeviceName = aliasInfo.currentEntity.name;
             if (this.targetDeviceId) {
               this.rpcEnabled = true;
             } else {
-              this.rpcEnabled = this.ctx.utils.widgetEditMode;
+              this.rpcEnabled = this.ctx.utils.widgetEditMode ? true : false;
             }
             this.hasResolvedData = this.rpcEnabled;
             this.callbacks.rpcStateChanged(this);
@@ -294,7 +290,7 @@ export class WidgetSubscription implements IWidgetSubscription {
       if (this.targetDeviceId) {
         this.rpcEnabled = true;
       } else {
-        this.rpcEnabled = this.ctx.utils.widgetEditMode;
+        this.rpcEnabled = this.ctx.utils.widgetEditMode ? true : false;
       }
       this.hasResolvedData = true;
       this.callbacks.rpcStateChanged(this);
@@ -333,31 +329,26 @@ export class WidgetSubscription implements IWidgetSubscription {
   }
 
   private configureAlarmsData() {
-    this.notifyDataLoaded();
   }
 
   private initDataSubscription(): Observable<any> {
-    this.notifyDataLoading();
     const initDataSubscriptionSubject = new ReplaySubject(1);
     this.loadStDiff().subscribe(() => {
       if (!this.ctx.aliasController) {
         this.hasResolvedData = true;
-        this.prepareDataSubscriptions().subscribe(
-          () => {
+        this.configureData();
+        initDataSubscriptionSubject.next();
+        initDataSubscriptionSubject.complete();
+      } else {
+        this.ctx.aliasController.resolveDatasources(this.datasources).subscribe(
+          (datasources) => {
+            this.datasources = datasources;
+            if (datasources && datasources.length) {
+              this.hasResolvedData = true;
+            }
+            this.configureData();
             initDataSubscriptionSubject.next();
             initDataSubscriptionSubject.complete();
-          }
-        );
-      } else {
-        this.ctx.aliasController.resolveDatasources(this.configuredDatasources, this.singleEntity).subscribe(
-          (datasources) => {
-            this.configuredDatasources = datasources;
-            this.prepareDataSubscriptions().subscribe(
-              () => {
-                initDataSubscriptionSubject.next();
-                initDataSubscriptionSubject.complete();
-              }
-            );
           },
           (err) => {
             this.notifyDataLoaded();
@@ -369,84 +360,107 @@ export class WidgetSubscription implements IWidgetSubscription {
     return initDataSubscriptionSubject.asObservable();
   }
 
-  private prepareDataSubscriptions(): Observable<any> {
-    if (this.hasDataPageLink) {
-      this.hasResolvedData = true;
-      this.notifyDataLoaded();
-      return of(null);
-    }
-    if (this.comparisonEnabled) {
-      const additionalDatasources: Datasource[] = [];
-      this.configuredDatasources.forEach((datasource, datasourceIndex) => {
-        const additionalDataKeys: DataKey[] = [];
-        datasource.dataKeys.forEach((dataKey, dataKeyIndex) => {
-          if (dataKey.settings.comparisonSettings && dataKey.settings.comparisonSettings.showValuesForComparison) {
-            const additionalDataKey = deepClone(dataKey);
-            additionalDataKey.isAdditional = true;
-            additionalDataKey.origDataKeyIndex = dataKeyIndex;
-            additionalDataKeys.push(additionalDataKey);
+  private configureData() {
+    const additionalDatasources: Datasource[] = [];
+    let dataIndex = 0;
+    let additionalKeysNumber = 0;
+    this.datasources.forEach((datasource) => {
+      const additionalDataKeys: DataKey[] = [];
+      let datasourceAdditionalKeysNumber = 0;
+      datasource.dataKeys.forEach((dataKey) => {
+        dataKey.hidden = dataKey.settings.hideDataByDefault ? true : false;
+        dataKey.inLegend = dataKey.settings.removeFromLegend ? false : true;
+        dataKey.pattern = dataKey.label;
+        if (this.comparisonEnabled && dataKey.settings.comparisonSettings && dataKey.settings.comparisonSettings.showValuesForComparison) {
+          datasourceAdditionalKeysNumber++;
+          additionalKeysNumber++;
+          const additionalDataKey = this.ctx.utils.createAdditionalDataKey(dataKey, datasource,
+            this.timeForComparison, this.datasources, additionalKeysNumber);
+          dataKey.settings.comparisonSettings.color = additionalDataKey.color;
+          additionalDataKeys.push(additionalDataKey);
+        }
+        const datasourceData: DatasourceData = {
+          datasource,
+          dataKey,
+          data: []
+        };
+        if (dataKey.type === DataKeyType.entityField && datasource.entity) {
+          const propName = entityFields[dataKey.name] ? entityFields[dataKey.name].value : dataKey.name;
+          if (datasource.entity[propName]) {
+            datasourceData.data.push([Date.now(), datasource.entity[propName]]);
           }
-        });
-        if (additionalDataKeys.length) {
-          const additionalDatasource: Datasource = deepClone(datasource);
-          additionalDatasource.dataKeys = additionalDataKeys;
-          additionalDatasource.isAdditional = true;
-          additionalDatasource.origDatasourceIndex = datasourceIndex;
-          additionalDatasources.push(additionalDatasource);
+        }
+        this.data.push(datasourceData);
+        this.hiddenData.push({data: []});
+        if (this.displayLegend) {
+          const legendKey: LegendKey = {
+            dataKey,
+            dataIndex: dataIndex++
+          };
+          this.legendData.keys.push(legendKey);
+          const legendKeyData: LegendKeyData = {
+            min: null,
+            max: null,
+            avg: null,
+            total: null,
+            hidden: false
+          };
+          this.legendData.data.push(legendKeyData);
         }
       });
-      this.configuredDatasources = this.configuredDatasources.concat(additionalDatasources);
-    }
-    const resolveResultObservables = this.configuredDatasources.map((datasource, index) => {
-      const listener: EntityDataListener = {
-        subscriptionType: this.type,
-        configDatasource: datasource,
-        configDatasourceIndex: index,
-        dataLoaded: (pageData, data1, datasourceIndex, pageLink) => {
-          this.dataLoaded(pageData, data1, datasourceIndex, pageLink, true)
-        },
-        initialPageDataChanged: this.initialPageDataChanged.bind(this),
-        dataUpdated: this.dataUpdated.bind(this),
-        updateRealtimeSubscription: () => {
-          if (this.comparisonEnabled && datasource.isAdditional) {
-            return this.updateSubscriptionForComparison();
-          } else {
-            return this.updateRealtimeSubscription();
-          }
-        },
-        setRealtimeSubscription: (subscriptionTimewindow) => {
-          if (this.comparisonEnabled && datasource.isAdditional) {
-            this.updateSubscriptionForComparison(subscriptionTimewindow);
-          } else {
-            this.updateRealtimeSubscription(deepClone(subscriptionTimewindow));
-          }
-        }
-      };
-      this.entityDataListeners.push(listener);
-      return this.ctx.entityDataService.prepareSubscription(listener);
+      if (datasourceAdditionalKeysNumber > 0) {
+        const additionalDatasource: Datasource = deepClone(datasource);
+        additionalDatasource.dataKeys = additionalDataKeys;
+        additionalDatasource.isAdditional = true;
+        additionalDatasources.push(additionalDatasource);
+      }
     });
-    return forkJoin(resolveResultObservables).pipe(
-      map((resolveResults) => {
-        resolveResults.forEach((resolveResult) => {
-          if (resolveResult) {
-            this.dataLoaded(resolveResult.pageData, resolveResult.data, resolveResult.datasourceIndex, resolveResult.pageLink, false);
-          }
-        });
-        this.configureLoadedData();
-        this.hasResolvedData = this.datasources.length > 0;
-        this.updateDataTimewindow();
-        this.notifyDataLoaded();
-        this.onDataUpdated(true);
-      })
-    );
+
+    additionalDatasources.forEach((additionalDatasource) => {
+      additionalDatasource.dataKeys.forEach((additionalDataKey) => {
+        const additionalDatasourceData: DatasourceData = {
+          datasource: additionalDatasource,
+          dataKey: additionalDataKey,
+          data: []
+        };
+        this.data.push(additionalDatasourceData);
+        this.hiddenData.push({data: []});
+        if (this.displayLegend) {
+          const additionalLegendKey: LegendKey = {
+            dataKey: additionalDataKey,
+            dataIndex: dataIndex++
+          };
+          this.legendData.keys.push(additionalLegendKey);
+          const additionalLegendKeyData: LegendKeyData = {
+            min: null,
+            max: null,
+            avg: null,
+            total: null,
+            hidden: false
+          };
+          this.legendData.data.push(additionalLegendKeyData);
+        }
+      });
+    });
+
+    this.datasources = this.datasources.concat(additionalDatasources);
+
+    if (this.displayLegend) {
+      this.legendData.keys = this.legendData.keys.sort((key1, key2) => key1.dataKey.label.localeCompare(key2.dataKey.label));
+    }
   }
 
   private resetData() {
-    this.data.length = 0;
-    this.hiddenData.length = 0;
-    if (this.displayLegend) {
-      this.legendData.keys.length = 0;
-      this.legendData.data.length = 0;
+    for (let i = 0; i < this.data.length; i++) {
+      this.data[i].data = [];
+      this.hiddenData[i].data = [];
+      if (this.displayLegend) {
+        this.legendData.data[i].min = null;
+        this.legendData.data[i].max = null;
+        this.legendData.data[i].avg = null;
+        this.legendData.data[i].total = null;
+        this.legendData.data[i].hidden = false;
+      }
     }
     this.onDataUpdated();
   }
@@ -455,7 +469,6 @@ export class WidgetSubscription implements IWidgetSubscription {
     let entityId: EntityId;
     let entityName: string;
     let entityLabel: string;
-    let entityDescription: string;
     if (this.type === widgetType.rpc) {
       if (this.targetDeviceId) {
         entityId = {
@@ -465,29 +478,13 @@ export class WidgetSubscription implements IWidgetSubscription {
         entityName = this.targetDeviceName;
       }
     } else if (this.type === widgetType.alarm) {
-      if (this.alarms && this.alarms.data.length) {
-        const data = this.alarms.data[0];
-        entityId = data.originator;
-        entityName = data.originatorName;
-        if (data.latest && data.latest[EntityKeyType.ENTITY_FIELD]) {
-          const entityFields = data.latest[EntityKeyType.ENTITY_FIELD];
-          const labelValue = entityFields.label;
-          if (labelValue) {
-            entityLabel = labelValue.value;
-          }
-          const additionalInfoValue = entityFields.additionalInfo;
-          if (additionalInfoValue) {
-            const additionalInfo = additionalInfoValue.value;
-            if (additionalInfo && additionalInfo.length) {
-              try {
-                const additionalInfoJson = JSON.parse(additionalInfo);
-                if (additionalInfoJson && additionalInfoJson.description) {
-                  entityDescription = additionalInfoJson.description;
-                }
-              } catch (e) {}
-            }
-          }
-        }
+      if (this.alarmSource && this.alarmSource.entityType && this.alarmSource.entityId) {
+        entityId = {
+          entityType: this.alarmSource.entityType,
+          id: this.alarmSource.entityId
+        };
+        entityName = this.alarmSource.entityName;
+        entityLabel = this.alarmSource.entityLabel;
       }
     } else {
       for (const datasource of this.datasources) {
@@ -498,7 +495,6 @@ export class WidgetSubscription implements IWidgetSubscription {
           };
           entityName = datasource.entityName;
           entityLabel = datasource.entityLabel;
-          entityDescription = datasource.entityDescription;
           break;
         }
       }
@@ -507,8 +503,7 @@ export class WidgetSubscription implements IWidgetSubscription {
       return {
         entityId,
         entityName,
-        entityLabel,
-        entityDescription
+        entityLabel
       };
     } else {
       return null;
@@ -522,16 +517,6 @@ export class WidgetSubscription implements IWidgetSubscription {
       return this.checkAlarmSource(aliasIds);
     } else {
       return this.checkSubscriptions(aliasIds);
-    }
-  }
-
-  onFiltersChanged(filterIds: Array<string>): boolean {
-    if (this.type !== widgetType.rpc) {
-      if (this.type === widgetType.alarm) {
-        return this.checkAlarmSourceFilters(filterIds);
-      } else {
-        return this.checkSubscriptionsFilters(filterIds);
-      }
     }
     return false;
   }
@@ -550,27 +535,21 @@ export class WidgetSubscription implements IWidgetSubscription {
     });
   }
 
-  private onSubscriptionMessage(message: SubscriptionMessage) {
-    if (this.cafs.message) {
-      this.cafs.message();
-      this.cafs.message = null;
-    }
-    this.cafs.message = this.ctx.raf.raf(() => {
-      this.callbacks.onSubscriptionMessage(this, message);
-    });
-  }
-
-  onDashboardTimewindowChanged(newDashboardTimewindow: Timewindow) {
+  onDashboardTimewindowChanged(newDashboardTimewindow: Timewindow): void {
     if (this.type === widgetType.timeseries || this.type === widgetType.alarm) {
       if (this.useDashboardTimewindow) {
         if (!isEqual(this.timeWindowConfig, newDashboardTimewindow) && newDashboardTimewindow) {
           this.timeWindowConfig = deepClone(newDashboardTimewindow);
           this.update();
-          return true;
         }
       }
     }
-    return false;
+  }
+
+  private onAlarmSearchStatusChanged() {
+    if (this.type === widgetType.alarm) {
+      this.update();
+    }
   }
 
   updateDataVisibility(index: number): void {
@@ -746,223 +725,165 @@ export class WidgetSubscription implements IWidgetSubscription {
   }
 
   update() {
-    if (this.type !== widgetType.rpc) {
-      if (this.type === widgetType.alarm) {
-        this.updateAlarmDataSubscription();
-      } else {
-        if (this.hasDataPageLink) {
-          this.updateDataSubscriptions();
-        } else {
-          this.notifyDataLoading();
-          this.dataSubscribe();
-        }
-      }
-    }
+    this.unsubscribe();
+    this.subscribe();
   }
 
   subscribe(): void {
-    if (!this.subscribed) {
-      this.subscribed = true;
-      if (this.cafs.subscribe) {
-        this.cafs.subscribe();
-        this.cafs.subscribe = null;
-      }
-      this.cafs.subscribe = this.ctx.raf.raf(() => {
-        this.doSubscribe();
-      });
+    if (this.cafs.subscribe) {
+      this.cafs.subscribe();
+      this.cafs.subscribe = null;
     }
-  }
-
-  subscribeAllForPaginatedData(pageLink: EntityDataPageLink,
-                               keyFilters: KeyFilter[]): Observable<any> {
-    const observables: Observable<any>[] = [];
-    this.configuredDatasources.forEach((datasource, datasourceIndex) => {
-      observables.push(this.subscribeForPaginatedData(datasourceIndex, pageLink, keyFilters));
+    this.cafs.subscribe = this.ctx.raf.raf(() => {
+      this.doSubscribe();
     });
-    if (observables.length) {
-      return forkJoin(observables);
-    } else {
-      return of(null);
-    }
-  }
-
-  subscribeForPaginatedData(datasourceIndex: number,
-                            pageLink: EntityDataPageLink,
-                            keyFilters: KeyFilter[]): Observable<any> {
-    let entityDataListener = this.entityDataListeners[datasourceIndex];
-    if (entityDataListener) {
-      this.ctx.entityDataService.stopSubscription(entityDataListener);
-    }
-    const datasource = this.configuredDatasources[datasourceIndex];
-    if (datasource) {
-      if (this.type === widgetType.timeseries && this.timeWindowConfig) {
-        this.updateRealtimeSubscription();
-      }
-      entityDataListener = {
-        subscriptionType: this.type,
-        configDatasource: datasource,
-        configDatasourceIndex: datasourceIndex,
-        subscriptionTimewindow: this.subscriptionTimewindow,
-        dataLoaded: (pageData, data1, datasourceIndex1, pageLink1) => {
-          this.dataLoaded(pageData, data1, datasourceIndex1, pageLink1, true)
-        },
-        dataUpdated: this.dataUpdated.bind(this),
-        updateRealtimeSubscription: () => {
-          return this.updateRealtimeSubscription();
-        },
-        setRealtimeSubscription: (subscriptionTimewindow) => {
-          this.updateRealtimeSubscription(deepClone(subscriptionTimewindow));
-        }
-      };
-      this.entityDataListeners[datasourceIndex] = entityDataListener;
-      return this.ctx.entityDataService.subscribeForPaginatedData(entityDataListener, pageLink, keyFilters);
-    } else {
-      return of(null);
-    }
-  }
-
-  subscribeForAlarms(pageLink: AlarmDataPageLink,
-                     keyFilters: KeyFilter[]) {
-    if (this.alarmDataListener) {
-      this.ctx.alarmDataService.stopSubscription(this.alarmDataListener);
-    }
-    if (this.timeWindowConfig) {
-      this.updateRealtimeSubscription();
-    }
-    this.alarmDataListener = {
-      subscriptionTimewindow: this.subscriptionTimewindow,
-      alarmSource: this.alarmSource,
-      alarmsLoaded: this.alarmsLoaded.bind(this),
-      alarmsUpdated: this.alarmsUpdated.bind(this)
-    };
-
-    this.alarms = emptyPageData();
-
-    this.ctx.alarmDataService.subscribeForAlarms(this.alarmDataListener, pageLink, keyFilters);
-
-    let forceUpdate = false;
-    if (this.alarmSource.unresolvedStateEntity) {
-      forceUpdate = true;
-    }
-    if (forceUpdate) {
-      this.onDataUpdated();
-    }
   }
 
   private doSubscribe() {
-    if (this.type !== widgetType.rpc && this.type !== widgetType.alarm) {
-      this.dataSubscribe();
+    if (this.type === widgetType.rpc) {
+      return;
     }
-  }
-
-  private updateDataTimewindow() {
-    if (!this.hasDataPageLink) {
+    if (this.type === widgetType.alarm) {
+      this.alarmsSubscribe();
+    } else {
+      this.notifyDataLoading();
       if (this.type === widgetType.timeseries && this.timeWindowConfig) {
         this.updateRealtimeSubscription();
         if (this.comparisonEnabled) {
           this.updateSubscriptionForComparison();
         }
-      }
-    }
-  }
-
-  private dataSubscribe() {
-    if (!this.hasDataPageLink) {
-      if (this.type === widgetType.timeseries && this.timeWindowConfig) {
-        this.updateDataTimewindow();
         if (this.subscriptionTimewindow.fixedWindow) {
           this.onDataUpdated();
         }
       }
-      const forceUpdate = !this.datasources.length;
-      this.entityDataListeners.forEach((listener) => {
-        if (this.comparisonEnabled && listener.configDatasource.isAdditional) {
+      let index = 0;
+      let forceUpdate = !this.datasources.length;
+      this.datasources.forEach((datasource) => {
+        const listener: DatasourceListener = {
+          subscriptionType: this.type,
+          subscriptionTimewindow: this.subscriptionTimewindow,
+          datasource,
+          entityType: datasource.entityType,
+          entityId: datasource.entityId,
+          dataUpdated: this.dataUpdated.bind(this),
+          updateRealtimeSubscription: () => {
+            this.subscriptionTimewindow = this.updateRealtimeSubscription();
+            return this.subscriptionTimewindow;
+          },
+          setRealtimeSubscription: (subscriptionTimewindow) => {
+            this.updateRealtimeSubscription(deepClone(subscriptionTimewindow));
+          },
+          datasourceIndex: index
+        };
+
+        if (this.comparisonEnabled && datasource.isAdditional) {
           listener.subscriptionTimewindow = this.timewindowForComparison;
-        } else {
-          listener.subscriptionTimewindow = this.subscriptionTimewindow;
+          listener.updateRealtimeSubscription = () => {
+            this.subscriptionTimewindow = this.updateSubscriptionForComparison();
+            return this.subscriptionTimewindow;
+          };
+          listener.setRealtimeSubscription = () => {
+            this.updateSubscriptionForComparison();
+          };
         }
-        this.ctx.entityDataService.startSubscription(listener);
+
+        let entityFieldKey = false;
+
+        for (let a = 0; a < datasource.dataKeys.length; a++) {
+          if (datasource.dataKeys[a].type !== DataKeyType.entityField) {
+            this.data[index + a].data = [];
+          } else {
+            entityFieldKey = true;
+          }
+        }
+        index += datasource.dataKeys.length;
+        this.datasourceListeners.push(listener);
+
+        if (datasource.dataKeys.length) {
+          this.ctx.datasourceService.subscribeToDatasource(listener);
+        }
+        if (datasource.unresolvedStateEntity || entityFieldKey ||
+          !datasource.dataKeys.length ||
+          (datasource.type === DatasourceType.entity && !datasource.entityId)
+        ) {
+          forceUpdate = true;
+        }
       });
       if (forceUpdate) {
+        this.notifyDataLoaded();
         this.onDataUpdated();
       }
     }
   }
+
+  private alarmsSubscribe() {
+    this.notifyDataLoading();
+    if (this.timeWindowConfig) {
+      this.updateRealtimeSubscription();
+      if (this.subscriptionTimewindow.fixedWindow) {
+        this.onDataUpdated();
+      }
+    }
+    this.alarmSourceListener = {
+      subscriptionTimewindow: this.subscriptionTimewindow,
+      alarmSource: this.alarmSource,
+      alarmSearchStatus: this.alarmSearchStatus,
+      alarmsPollingInterval: this.alarmsPollingInterval,
+      alarmsMaxCountLoad: this.alarmsMaxCountLoad,
+      alarmsFetchSize: this.alarmsFetchSize,
+      alarmsUpdated: alarms => this.alarmsUpdated(alarms)
+    };
+    this.alarms = null;
+
+    this.ctx.alarmService.subscribeForAlarms(this.alarmSourceListener);
+
+    let forceUpdate = false;
+    if (this.alarmSource.unresolvedStateEntity ||
+      (this.alarmSource.type === DatasourceType.entity && !this.alarmSource.entityId)
+    ) {
+      forceUpdate = true;
+    }
+    if (forceUpdate) {
+      this.notifyDataLoaded();
+      this.onDataUpdated();
+    }
+  }
+
 
   unsubscribe() {
     if (this.type !== widgetType.rpc) {
       if (this.type === widgetType.alarm) {
         this.alarmsUnsubscribe();
       } else {
-        this.entityDataListeners.forEach((listener) => {
-          if (listener != null) {
-            this.ctx.entityDataService.stopSubscription(listener);
-          }
+        this.datasourceListeners.forEach((listener) => {
+          this.ctx.datasourceService.unsubscribeFromDatasource(listener);
         });
-        this.entityDataListeners.length = 0;
+        this.datasourceListeners.length = 0;
         this.resetData();
       }
     }
-    this.subscribed = false;
   }
 
   private alarmsUnsubscribe() {
-    if (this.alarmDataListener) {
-      this.ctx.alarmDataService.stopSubscription(this.alarmDataListener);
-      this.alarmDataListener = null;
+    if (this.alarmSourceListener) {
+      this.ctx.alarmService.unsubscribeFromAlarms(this.alarmSourceListener);
+      this.alarmSourceListener = null;
     }
   }
 
   private checkRpcTarget(aliasIds: Array<string>): boolean {
-    return aliasIds.indexOf(this.targetDeviceAliasId) > -1;
+    if (aliasIds.indexOf(this.targetDeviceAliasId) > -1) {
+      return true;
+    } else {
+      return false;
+    }
   }
 
   private checkAlarmSource(aliasIds: Array<string>): boolean {
     if (this.options.alarmSource && this.options.alarmSource.entityAliasId) {
-      if (aliasIds.indexOf(this.options.alarmSource.entityAliasId) > -1) {
-        this.updateAlarmSubscription();
-      }
-    }
-    return false;
-  }
-
-  private checkAlarmSourceFilters(filterIds: Array<string>): boolean {
-    if (this.options.alarmSource && this.options.alarmSource.filterId) {
-      if (filterIds.indexOf(this.options.alarmSource.filterId) > -1) {
-        this.updateAlarmSubscription();
-      }
-    }
-    return false;
-  }
-
-  private updateAlarmSubscription() {
-    this.alarmSource = this.options.alarmSource;
-    if (!this.ctx.aliasController) {
-      this.hasResolvedData = true;
-      this.configureAlarmsData();
-      this.updateAlarmDataSubscription();
+      return aliasIds.indexOf(this.options.alarmSource.entityAliasId) > -1;
     } else {
-      this.ctx.aliasController.resolveAlarmSource(this.alarmSource).subscribe(
-        (alarmSource) => {
-          this.alarmSource = alarmSource;
-          if (alarmSource) {
-            this.hasResolvedData = true;
-          }
-          this.configureAlarmsData();
-          this.updateAlarmDataSubscription();
-        },
-        () => {
-          this.notifyDataLoaded();
-        }
-      );
-    }
-  }
-
-  private updateAlarmDataSubscription() {
-    if (this.alarmDataListener) {
-      const pageLink = this.alarmDataListener.subscription.alarmDataSubscriptionOptions.pageLink;
-      const keyFilters = this.alarmDataListener.subscription.alarmDataSubscriptionOptions.additionalKeyFilters;
-      this.subscribeForAlarms(pageLink, keyFilters);
+      return false;
     }
   }
 
@@ -979,68 +900,7 @@ export class WidgetSubscription implements IWidgetSubscription {
         }
       }
     }
-    if (subscriptionsChanged && this.hasDataPageLink) {
-      subscriptionsChanged = false;
-      this.updateDataSubscriptions();
-    }
     return subscriptionsChanged;
-  }
-
-  private checkSubscriptionsFilters(filterIds: Array<string>): boolean {
-    let subscriptionsChanged = false;
-    const datasources = this.options.datasources;
-    if (datasources) {
-      for (const datasource of datasources) {
-        if (datasource.filterId) {
-          if (filterIds.indexOf(datasource.filterId) > -1) {
-            subscriptionsChanged = true;
-            break;
-          }
-        }
-      }
-    }
-    if (subscriptionsChanged && this.hasDataPageLink) {
-      subscriptionsChanged = false;
-      this.updateDataSubscriptions();
-    }
-    return subscriptionsChanged;
-  }
-
-  private updateDataSubscriptions() {
-    this.configuredDatasources = this.ctx.utils.validateDatasources(this.options.datasources);
-    if (!this.ctx.aliasController) {
-      this.hasResolvedData = true;
-      this.prepareDataSubscriptions().subscribe(
-        () => {
-          this.updatePaginatedDataSubscriptions();
-        }
-      );
-    } else {
-      this.ctx.aliasController.resolveDatasources(this.configuredDatasources, this.singleEntity).subscribe(
-        (datasources) => {
-          this.configuredDatasources = datasources;
-          this.prepareDataSubscriptions().subscribe(
-            () => {
-              this.updatePaginatedDataSubscriptions();
-            }
-          );
-        },
-        () => {
-          this.notifyDataLoaded();
-        }
-      );
-    }
-  }
-
-  private updatePaginatedDataSubscriptions() {
-    for (let datasourceIndex = 0; datasourceIndex < this.entityDataListeners.length; datasourceIndex++) {
-      const entityDataListener = this.entityDataListeners[datasourceIndex];
-      if (entityDataListener) {
-        const pageLink = entityDataListener.subscriptionOptions.pageLink;
-        const keyFilters = entityDataListener.subscriptionOptions.additionalKeyFilters;
-        this.subscribeForPaginatedData(datasourceIndex, pageLink, keyFilters);
-      }
-    }
   }
 
   isDataResolved(): boolean {
@@ -1078,7 +938,7 @@ export class WidgetSubscription implements IWidgetSubscription {
     }
   }
 
-  private updateRealtimeSubscription(subscriptionTimewindow?: SubscriptionTimewindow): SubscriptionTimewindow {
+  private updateRealtimeSubscription(subscriptionTimewindow?: SubscriptionTimewindow) {
     if (subscriptionTimewindow) {
       this.subscriptionTimewindow = subscriptionTimewindow;
     } else {
@@ -1101,195 +961,38 @@ export class WidgetSubscription implements IWidgetSubscription {
     }
   }
 
-  private updateSubscriptionForComparison(subscriptionTimewindow?: SubscriptionTimewindow): SubscriptionTimewindow {
-    if (subscriptionTimewindow) {
-      this.timewindowForComparison = subscriptionTimewindow;
-    } else {
-      if (!this.subscriptionTimewindow) {
-        this.subscriptionTimewindow = this.updateRealtimeSubscription();
-      }
-      this.timewindowForComparison = createTimewindowForComparison(this.subscriptionTimewindow, this.timeForComparison);
+  private updateSubscriptionForComparison() {
+    if (!this.subscriptionTimewindow) {
+      this.subscriptionTimewindow = this.updateRealtimeSubscription();
     }
+    this.timewindowForComparison = createTimewindowForComparison(this.subscriptionTimewindow, this.timeForComparison);
     this.updateComparisonTimewindow();
     return this.timewindowForComparison;
   }
 
-  private initialPageDataChanged(nextPageData: PageData<EntityData>) {
-    this.callbacks.onInitialPageDataChanged(this, nextPageData);
-  }
-
-  private dataLoaded(pageData: PageData<EntityData>,
-                     data: Array<Array<DataSetHolder>>,
-                     datasourceIndex: number, pageLink: EntityDataPageLink, isUpdate: boolean) {
-    const datasource = this.configuredDatasources[datasourceIndex];
-    datasource.dataReceived = true;
-    const datasources = pageData.data.map((entityData, index) =>
-      this.entityDataToDatasource(datasource, entityData, index)
-    );
-    this.datasourcePages[datasourceIndex] = {
-      data: datasources,
-      hasNext: pageData.hasNext,
-      totalElements: pageData.totalElements,
-      totalPages: pageData.totalPages
-    };
-    const datasourceData = datasources.map((datasourceElement, index) =>
-      this.entityDataToDatasourceData(datasourceElement, data[index])
-    );
-    this.dataPages[datasourceIndex] = {
-      data: datasourceData,
-      hasNext: pageData.hasNext,
-      totalElements: pageData.totalElements,
-      totalPages: pageData.totalPages
-    };
-    if (datasource.type === DatasourceType.entity &&
-        pageData.hasNext && pageLink.pageSize > 1) {
-      if (this.warnOnPageDataOverflow) {
-        const message = this.ctx.translate.instant('widget.data-overflow',
-          {count: pageData.data.length, total: pageData.totalElements});
-        this.onSubscriptionMessage({
-          severity: 'warn',
-          message
-        })
+  private dataUpdated(sourceData: DataSetHolder, datasourceIndex: number, dataKeyIndex: number, detectChanges: boolean) {
+    for (let x = 0; x < this.datasourceListeners.length; x++) {
+      this.datasources[x].dataReceived = this.datasources[x].dataReceived === true;
+      if (this.datasourceListeners[x].datasourceIndex === datasourceIndex && sourceData.data.length > 0) {
+        this.datasources[x].dataReceived = true;
       }
     }
-    if (isUpdate) {
-      this.configureLoadedData();
-      this.onDataUpdated(true);
-    }
-  }
-
-  private configureLoadedData() {
-    this.datasources.length = 0;
-    this.data.length = 0;
-    this.hiddenData.length = 0;
-    if (this.displayLegend) {
-      this.legendData.keys.length = 0;
-      this.legendData.data.length = 0;
-    }
-
-    let dataKeyIndex = 0;
-    this.configuredDatasources.forEach((configuredDatasource, datasourceIndex) => {
-        configuredDatasource.dataKeyStartIndex = dataKeyIndex;
-        const datasourcesPage = this.datasourcePages[datasourceIndex];
-        const datasourceDataPage = this.dataPages[datasourceIndex];
-        if (datasourcesPage) {
-          datasourcesPage.data.forEach((datasource, currentDatasourceIndex) => {
-            datasource.dataKeys.forEach((dataKey, currentDataKeyIndex) => {
-              const datasourceData = datasourceDataPage.data[currentDatasourceIndex][currentDataKeyIndex];
-              this.data.push(datasourceData);
-              this.hiddenData.push({data: []});
-              if (this.displayLegend) {
-                const legendKey: LegendKey = {
-                  dataKey,
-                  dataIndex: dataKeyIndex
-                };
-                this.legendData.keys.push(legendKey);
-                const legendKeyData: LegendKeyData = {
-                  min: null,
-                  max: null,
-                  avg: null,
-                  total: null,
-                  hidden: false
-                };
-                this.legendData.data.push(legendKeyData);
-              }
-              dataKeyIndex++;
-            });
-            this.datasources.push(datasource);
-          });
-        }
-      }
-    );
-    let index = 0;
-    this.datasources.forEach((datasource) => {
-      datasource.dataKeys.forEach((dataKey) => {
-        if (datasource.generated || datasource.isAdditional) {
-          dataKey._hash = Math.random();
-          dataKey.color = this.ctx.utils.getMaterialColor(index);
-        }
-        index++;
-      });
-    });
-    if (this.comparisonEnabled) {
-      this.datasourcePages.forEach(datasourcePage => {
-        datasourcePage.data.forEach((datasource, dIndex) => {
-          if (datasource.isAdditional) {
-            const origDatasource = this.datasourcePages[datasource.origDatasourceIndex].data[dIndex];
-            datasource.dataKeys.forEach((dataKey) => {
-              if (dataKey.settings.comparisonSettings.color) {
-                dataKey.color = dataKey.settings.comparisonSettings.color;
-              }
-              const origDataKey = origDatasource.dataKeys[dataKey.origDataKeyIndex];
-              origDataKey.settings.comparisonSettings.color = dataKey.color;
-            });
-          }
-        });
-      });
-    }
-    if (this.displayLegend) {
-      this.legendData.keys = this.legendData.keys.sort((key1, key2) => key1.dataKey.label.localeCompare(key2.dataKey.label));
-    }
-    if (this.caulculateLegendData) {
-      this.data.forEach((dataSetHolder, keyIndex) => {
-        this.updateLegend(keyIndex, dataSetHolder.data, false);
-      });
-      this.callbacks.legendDataUpdated(this, true);
-    }
-  }
-
-  private entityDataToDatasourceData(datasource: Datasource, data: Array<DataSetHolder>): Array<DatasourceData> {
-    return datasource.dataKeys.map((dataKey, keyIndex) => {
-      dataKey.hidden = !!dataKey.settings.hideDataByDefault;
-      dataKey.inLegend = !dataKey.settings.removeFromLegend;
-      if (this.comparisonEnabled && dataKey.isAdditional && dataKey.settings.comparisonSettings.comparisonValuesLabel) {
-         dataKey.label = createLabelFromDatasource(datasource, dataKey.settings.comparisonSettings.comparisonValuesLabel);
-      } else {
-        if (this.comparisonEnabled && dataKey.isAdditional) {
-          dataKey.label = dataKey.label + ' ' + this.ctx.translate.instant('legend.comparison-time-ago.' + this.timeForComparison);
-        }
-        dataKey.pattern = dataKey.label;
-        dataKey.label = createLabelFromDatasource(datasource, dataKey.pattern);
-      }
-      const datasourceData: DatasourceData = {
-        datasource,
-        dataKey,
-        data: []
-      };
-      if (data && data[keyIndex] && data[keyIndex].data) {
-        datasourceData.data = data[keyIndex].data;
-      }
-      return datasourceData;
-    });
-  }
-
-  private entityDataToDatasource(configDatasource: Datasource, entityData: EntityData, index: number): Datasource {
-    const newDatasource = deepClone(configDatasource);
-    const entityInfo = entityDataToEntityInfo(entityData);
-    updateDatasourceFromEntityInfo(newDatasource, entityInfo);
-    newDatasource.generated = index > 0;
-    return newDatasource;
-  }
-
-  private dataUpdated(data: DataSetHolder, datasourceIndex: number, dataIndex: number, dataKeyIndex: number, detectChanges: boolean) {
-    const configuredDatasource = this.configuredDatasources[datasourceIndex];
-    const startIndex = configuredDatasource.dataKeyStartIndex;
-    const dataKeysCount = configuredDatasource.dataKeys.length;
-    const index = startIndex + dataIndex*dataKeysCount + dataKeyIndex;
+    this.notifyDataLoaded();
     let update = true;
     let currentData: DataSetHolder;
-    if (this.displayLegend && this.legendData.keys[index].dataKey.hidden) {
-      currentData = this.hiddenData[index];
+    if (this.displayLegend && this.legendData.keys[datasourceIndex + dataKeyIndex].dataKey.hidden) {
+      currentData = this.hiddenData[datasourceIndex + dataKeyIndex];
     } else {
-      currentData = this.data[index];
+      currentData = this.data[datasourceIndex + dataKeyIndex];
     }
     if (this.type === widgetType.latest) {
       const prevData = currentData.data;
-      if (!data.data.length) {
+      if (!sourceData.data.length) {
         update = false;
-      } else if (prevData && prevData[0] && prevData[0].length > 1 && data.data.length > 0) {
+      } else if (prevData && prevData[0] && prevData[0].length > 1 && sourceData.data.length > 0) {
         const prevTs = prevData[0][0];
         const prevValue = prevData[0][1];
-        if (prevTs === data.data[0][0] && prevValue === data.data[0][1]) {
+        if (prevTs === sourceData.data[0][0] && prevValue === sourceData.data[0][1]) {
           update = false;
         }
       }
@@ -1301,33 +1004,24 @@ export class WidgetSubscription implements IWidgetSubscription {
           this.updateComparisonTimewindow();
         }
       }
-      currentData.data = data.data;
+      currentData.data = sourceData.data;
       if (this.caulculateLegendData) {
-        this.updateLegend(index, data.data, detectChanges);
+        this.updateLegend(datasourceIndex + dataKeyIndex, sourceData.data, detectChanges);
       }
-      this.notifyDataLoaded();
       this.onDataUpdated(detectChanges);
     }
   }
 
-  private alarmsLoaded(alarms: PageData<AlarmData>, allowedEntities: number, totalEntities: number) {
+  private alarmsUpdated(alarms: Array<AlarmInfo>) {
+    this.notifyDataLoaded();
+    const updated = !this.alarms || !isEqual(this.alarms, alarms);
     this.alarms = alarms;
-    if (totalEntities > allowedEntities) {
-      const message = this.ctx.translate.instant('widget.alarm-data-overflow',
-        { allowedEntities, totalEntities });
-      this.onSubscriptionMessage({
-        severity: 'warn',
-        message
-      });
-    }
     if (this.subscriptionTimewindow && this.subscriptionTimewindow.realtimeWindowMs) {
       this.updateTimewindow();
     }
-    this.onDataUpdated();
-  }
-
-  private alarmsUpdated(_updated: Array<AlarmData>, alarms: PageData<AlarmData>) {
-    this.alarmsLoaded(alarms, 0, 0);
+    if (updated) {
+      this.onDataUpdated();
+    }
   }
 
   private updateLegend(dataIndex: number, data: DataSet, detectChanges: boolean) {
@@ -1349,6 +1043,7 @@ export class WidgetSubscription implements IWidgetSubscription {
     }
     this.callbacks.legendDataUpdated(this, detectChanges !== false);
   }
+
 
   private loadStDiff(): Observable<any> {
     const loadSubject = new ReplaySubject(1);

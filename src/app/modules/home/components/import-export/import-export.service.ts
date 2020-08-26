@@ -55,7 +55,6 @@ import { RequestConfig } from '@core/http/http-utils';
 import { RuleChain, RuleChainImport, RuleChainMetaData } from '@shared/models/rule-chain.models';
 import { RuleChainService } from '@core/http/rule-chain.service';
 import * as JSZip from 'jszip';
-import { FiltersInfo } from '@shared/models/query/query.models';
 
 // @dynamic
 @Injectable()
@@ -143,8 +142,7 @@ export class ImportExportService {
 
   public importWidget(dashboard: Dashboard, targetState: string,
                       targetLayoutFunction: () => Observable<DashboardLayoutId>,
-                      onAliasesUpdateFunction: () => void,
-                      onFiltersUpdateFunction: () => void): Observable<ImportWidgetResult> {
+                      onAliasesUpdateFunction: () => void): Observable<ImportWidgetResult> {
     return this.openImportDialog('dashboard.import-widget', 'dashboard.widget-file').pipe(
       mergeMap((widgetItem: WidgetItem) => {
         if (!this.validateImportedWidget(widgetItem)) {
@@ -156,9 +154,6 @@ export class ImportExportService {
           let widget = widgetItem.widget;
           widget = this.dashboardUtils.validateAndUpdateWidget(widget);
           const aliasesInfo = this.prepareAliasesInfo(widgetItem.aliasesInfo);
-          const filtersInfo: FiltersInfo = widgetItem.filtersInfo || {
-            datasourceFilters: {}
-          };
           const originalColumns = widgetItem.originalColumns;
           const originalSize = widgetItem.originalSize;
 
@@ -207,23 +202,23 @@ export class ImportExportService {
                             }
                           }
                           return this.addImportedWidget(dashboard, targetState, targetLayoutFunction, widget,
-                            aliasesInfo, filtersInfo, onAliasesUpdateFunction, onFiltersUpdateFunction, originalColumns, originalSize);
+                            aliasesInfo, onAliasesUpdateFunction, originalColumns, originalSize);
                         }
                       ));
                     } else {
                       return this.addImportedWidget(dashboard, targetState, targetLayoutFunction, widget,
-                        aliasesInfo, filtersInfo, onAliasesUpdateFunction, onFiltersUpdateFunction, originalColumns, originalSize);
+                        aliasesInfo, onAliasesUpdateFunction, originalColumns, originalSize);
                     }
                   }
                 )
               );
             } else {
               return this.addImportedWidget(dashboard, targetState, targetLayoutFunction, widget,
-                aliasesInfo, filtersInfo, onAliasesUpdateFunction, onFiltersUpdateFunction, originalColumns, originalSize);
+                aliasesInfo, onAliasesUpdateFunction, originalColumns, originalSize);
             }
           } else {
             return this.addImportedWidget(dashboard, targetState, targetLayoutFunction, widget,
-              aliasesInfo, filtersInfo, onAliasesUpdateFunction, onFiltersUpdateFunction, originalColumns, originalSize);
+              aliasesInfo, onAliasesUpdateFunction, originalColumns, originalSize);
           }
         }
       }),
@@ -540,16 +535,12 @@ export class ImportExportService {
 
   private addImportedWidget(dashboard: Dashboard, targetState: string,
                             targetLayoutFunction: () => Observable<DashboardLayoutId>,
-                            widget: Widget, aliasesInfo: AliasesInfo,
-                            filtersInfo: FiltersInfo,
-                            onAliasesUpdateFunction: () => void,
-                            onFiltersUpdateFunction: () => void,
+                            widget: Widget, aliasesInfo: AliasesInfo, onAliasesUpdateFunction: () => void,
                             originalColumns: number, originalSize: WidgetSize): Observable<ImportWidgetResult> {
     return targetLayoutFunction().pipe(
       mergeMap((targetLayout) => {
         return this.itembuffer.addWidgetToDashboard(dashboard, targetState, targetLayout,
-          widget, aliasesInfo, filtersInfo, onAliasesUpdateFunction, onFiltersUpdateFunction,
-          originalColumns, originalSize, -1, -1).pipe(
+          widget, aliasesInfo, onAliasesUpdateFunction, originalColumns, originalSize, -1, -1).pipe(
           map(() => ({widget, layoutId: targetLayout} as ImportWidgetResult))
         );
       }

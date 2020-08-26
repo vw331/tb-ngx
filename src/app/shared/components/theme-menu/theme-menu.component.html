@@ -1,0 +1,11 @@
+<button
+  mat-icon-button
+  [matMenuTriggerFor]="menu"
+>
+  <mat-icon>palette</mat-icon>
+</button>
+
+<mat-menu #menu="matMenu">
+  <button mat-menu-item (click)="changeTheme('light')">白色模式</button>
+  <button mat-menu-item (click)="changeTheme('dark')">深色模式</button>
+</mat-menu>

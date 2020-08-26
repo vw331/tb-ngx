@@ -51,6 +51,7 @@ export class HomeComponent extends PageComponent implements AfterViewInit, OnIni
   sidenavOpened = true;
 
   logo = require('../../../assets/logo_title_white.svg').default;
+  logoMini = require('../../../assets/logo_white.svg').default;
 
   @ViewChild('sidenav')
   sidenav: MatSidenav;
@@ -58,6 +59,7 @@ export class HomeComponent extends PageComponent implements AfterViewInit, OnIni
   @ViewChild('searchInput') searchInputField: ElementRef;
 
   fullscreenEnabled = screenfull.isEnabled;
+  fullsidenavWidth = true;
 
   authUser$: Observable<any>;
   userDetails$: Observable<User>;

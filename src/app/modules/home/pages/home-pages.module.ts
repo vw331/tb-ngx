@@ -29,8 +29,8 @@ import { EntityViewModule } from '@modules/home/pages/entity-view/entity-view.mo
 import { RuleChainModule } from '@modules/home/pages/rulechain/rulechain.module';
 import { WidgetLibraryModule } from '@modules/home/pages/widget/widget-library.module';
 import { DashboardModule } from '@modules/home/pages/dashboard/dashboard.module';
-import { MODULES_MAP } from '@shared/public-api';
-import { modulesMap } from '../../common/modules-map';
+import { DemoModule } from './demo/demo.module';
+
 
 @NgModule({
   exports: [
@@ -46,13 +46,12 @@ import { modulesMap } from '../../common/modules-map';
     WidgetLibraryModule,
     DashboardModule,
     AuditLogModule,
-    UserModule
+    UserModule,
+    DemoModule
   ],
-  providers: [
-    {
-      provide: MODULES_MAP,
-      useValue: modulesMap
-    }
-  ]
+  declarations: [
+    
+  ],
+  imports: []
 })
 export class HomePagesModule { }

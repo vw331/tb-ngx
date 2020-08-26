@@ -14,7 +14,10 @@
  * limitations under the License.
  */
 :host {
-  .mat-accordion-container {
+  mat-expansion-panel {
     margin-bottom: 16px;
+  }
+  .tb-panel-title {
+
   }
 }

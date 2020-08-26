@@ -26,6 +26,7 @@ import { HomeModule } from '@home/home.module';
 import { AppComponent } from './app.component';
 import { DashboardRoutingModule } from '@modules/dashboard/dashboard-routing.module';
 import { RouterModule, Routes } from '@angular/router';
+import { TestModule } from './test/test.module';
 
 const routes: Routes = [
   { path: '**',
@@ -35,7 +36,8 @@ const routes: Routes = [
 
 @NgModule({
   imports: [
-    RouterModule.forChild(routes)],
+    RouterModule.forChild(routes),
+    TestModule],
   exports: [RouterModule]
 })
 export class PageNotFoundRoutingModule { }

@@ -92,7 +92,7 @@ export class MailServerComponent extends PageComponent implements OnInit, HasCon
   }
 
   enableProxyChanged(): void {
-    const enableProxy: boolean = this.mailSettings.get('enableProxy').value;
+    let enableProxy: boolean = this.mailSettings.get('enableProxy').value;
     if (enableProxy) {
       this.mailSettings.get('proxyHost').enable();
       this.mailSettings.get('proxyPort').enable();

@@ -75,7 +75,7 @@ export class AddAttributeDialogComponent extends DialogComponent<AddAttributeDia
     this.submitted = true;
     const attribute: AttributeData = {
       lastUpdateTs: null,
-      key: this.attributeFormGroup.get('key').value.trim(),
+      key: this.attributeFormGroup.get('key').value,
       value: this.attributeFormGroup.get('value').value
     };
     this.attributeService.saveEntityAttributes(this.data.entityId,

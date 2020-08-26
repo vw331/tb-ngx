@@ -14,8 +14,10 @@
 /// limitations under the License.
 ///
 
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, Input } from '@angular/core';
 import { MenuService } from '@core/services/menu.service';
+
+type Size = 'mini' | 'full'
 
 @Component({
   selector: 'tb-side-menu',
@@ -23,6 +25,8 @@ import { MenuService } from '@core/services/menu.service';
   styleUrls: ['./side-menu.component.scss']
 })
 export class SideMenuComponent implements OnInit {
+
+  @Input() size:Size = 'full';
 
   menuSections$ = this.menuService.menuSections();
 

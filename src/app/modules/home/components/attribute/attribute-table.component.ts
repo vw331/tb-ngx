@@ -80,7 +80,6 @@ import {
   AddWidgetToDashboardDialogData
 } from '@home/components/attribute/add-widget-to-dashboard-dialog.component';
 import { deepClone } from '@core/utils';
-import { Filters } from '@shared/models/query/query.models';
 
 
 @Component({
@@ -391,11 +390,9 @@ export class AttributeTableComponent extends PageComponent implements AfterViewI
       }
     };
 
-    const filters: Filters = {};
-
     this.aliasController = new AliasController(this.utils,
       this.entityService,
-      () => stateController, entitiAliases, filters);
+      () => stateController, entitiAliases);
 
     const dataKeyType: DataKeyType = this.attributeScope === LatestTelemetry.LATEST_TELEMETRY ?
       DataKeyType.timeseries : DataKeyType.attribute;

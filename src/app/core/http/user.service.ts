@@ -18,11 +18,10 @@ import { Injectable } from '@angular/core';
 import { defaultHttpOptionsFromConfig, RequestConfig } from './http-utils';
 import { User } from '@shared/models/user.model';
 import { Observable } from 'rxjs';
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient } from '@angular/common/http';
 import { PageLink } from '@shared/models/page/page-link';
 import { PageData } from '@shared/models/page/page-data';
 import { isDefined } from '@core/utils';
-import { InterceptorHttpParams } from '@core/interceptors/interceptor-http-params';
 
 @Injectable({
   providedIn: 'root'
@@ -32,12 +31,6 @@ export class UserService {
   constructor(
     private http: HttpClient
   ) { }
-
-  public getUsers(pageLink: PageLink,
-                  config?: RequestConfig): Observable<PageData<User>> {
-    return this.http.get<PageData<User>>(`/api/users${pageLink.toQuery()}`,
-      defaultHttpOptionsFromConfig(config));
-  }
 
   public getTenantAdmins(tenantId: string, pageLink: PageLink,
                          config?: RequestConfig): Observable<PageData<User>> {
@@ -72,8 +65,7 @@ export class UserService {
   }
 
   public sendActivationEmail(email: string, config?: RequestConfig) {
-    const encodeEmail = encodeURIComponent(email);
-    return this.http.post(`/api/user/sendActivationMail?email=${encodeEmail}`, null, defaultHttpOptionsFromConfig(config));
+    return this.http.post(`/api/user/sendActivationMail?email=${email}`, null, defaultHttpOptionsFromConfig(config));
   }
 
   public setUserCredentialsEnabled(userId: string, userCredentialsEnabled?: boolean, config?: RequestConfig): Observable<any> {

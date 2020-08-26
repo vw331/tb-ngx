@@ -58,7 +58,7 @@ import { GridsterModule } from 'angular-gridster2';
 import { FlexLayoutModule } from '@angular/flex-layout';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
-import { ShareModule as ShareButtonsModule } from 'ngx-sharebuttons';
+import { ShareModule as ShareButtonsModule } from '@ngx-share/core';
 import { HotkeyModule } from 'angular2-hotkeys';
 import { ColorPickerModule } from 'ngx-color-picker';
 import { NgxHmCarouselModule } from 'ngx-hm-carousel';
@@ -134,6 +134,7 @@ import { HistorySelectorComponent } from './components/time/history-selector/his
 import { EntityGatewaySelectComponent } from '@shared/components/entity/entity-gateway-select.component';
 import { QueueTypeListComponent } from '@shared/components/queue/queue-type-list.component';
 import { ContactComponent } from '@shared/components/contact.component';
+import { ThemeMenuComponent } from './components/theme-menu/theme-menu.component';
 
 @NgModule({
   providers: [
@@ -220,7 +221,8 @@ import { ContactComponent } from '@shared/components/contact.component';
     JsonObjectEditDialogComponent,
     HistorySelectorComponent,
     EntityGatewaySelectComponent,
-    ContactComponent
+    ContactComponent,
+    ThemeMenuComponent
   ],
   imports: [
     CommonModule,
@@ -268,7 +270,7 @@ import { ContactComponent } from '@shared/components/contact.component';
     ColorPickerModule,
     NgxHmCarouselModule,
     NgxFlowModule,
-    NgxFlowchartModule
+    NgxFlowchartModule,
   ],
   exports: [
     FooterComponent,
@@ -382,7 +384,8 @@ import { ContactComponent } from '@shared/components/contact.component';
     JsonObjectEditDialogComponent,
     HistorySelectorComponent,
     EntityGatewaySelectComponent,
-    ContactComponent
+    ContactComponent,
+    ThemeMenuComponent
   ]
 })
 export class SharedModule { }

@@ -23,7 +23,6 @@ import { Observable, of, Subject } from 'rxjs';
 import { guid, isDefined, isEqual, isUndefined } from '@app/core/utils';
 import { IterableDiffer, KeyValueDiffer } from '@angular/core';
 import { IAliasController, IStateController } from '@app/core/api/widget-api.models';
-import { enumerable } from '@shared/decorators/enumerable';
 
 export interface WidgetsData {
   widgets: Array<Widget>;
@@ -402,7 +401,6 @@ export class DashboardWidget implements GridsterItem, IDashboardWidget {
     this.widgetActions = this.widgetContext.widgetActions ? this.widgetContext.widgetActions : [];
   }
 
-  @enumerable(true)
   get x(): number {
     let res;
     if (this.widgetLayout) {
@@ -423,7 +421,6 @@ export class DashboardWidget implements GridsterItem, IDashboardWidget {
     }
   }
 
-  @enumerable(true)
   get y(): number {
     let res;
     if (this.widgetLayout) {
@@ -444,7 +441,6 @@ export class DashboardWidget implements GridsterItem, IDashboardWidget {
     }
   }
 
-  @enumerable(true)
   get cols(): number {
     let res;
     if (this.widgetLayout) {
@@ -465,7 +461,6 @@ export class DashboardWidget implements GridsterItem, IDashboardWidget {
     }
   }
 
-  @enumerable(true)
   get rows(): number {
     let res;
     if (this.dashboard.isMobileSize && !this.dashboard.mobileAutofillHeight) {
@@ -502,7 +497,6 @@ export class DashboardWidget implements GridsterItem, IDashboardWidget {
     }
   }
 
-  @enumerable(true)
   get widgetOrder(): number {
     let order;
     if (this.widgetLayout && isDefined(this.widgetLayout.mobileOrder) && this.widgetLayout.mobileOrder >= 0) {

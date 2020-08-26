@@ -16,7 +16,7 @@
 
 export * from './alias-controller';
 export * from './data-aggregator';
-export * from './entity-data.service';
-export * from './entity-data-subscription';
+export * from './datasource.service';
+export * from './datasource-subcription';
 export * from './widget-api.models';
 export * from './widget-subscription';

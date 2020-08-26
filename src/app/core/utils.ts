@@ -17,6 +17,7 @@
 import _ from 'lodash';
 import { Observable, Subject } from 'rxjs';
 import { finalize, share } from 'rxjs/operators';
+import base64js from 'base64-js';
 import { Datasource } from '@app/shared/models/widget.models';
 
 const varsRegex = /\${([^}]*)}/g;
@@ -76,20 +77,12 @@ export function isUndefined(value: any): boolean {
   return typeof value === 'undefined';
 }
 
-export function isUndefinedOrNull(value: any): boolean {
-  return typeof value === 'undefined' || value === null;
-}
-
 export function isDefined(value: any): boolean {
   return typeof value !== 'undefined';
 }
 
 export function isDefinedAndNotNull(value: any): boolean {
   return typeof value !== 'undefined' && value !== null;
-}
-
-export function isEmptyStr(value: any): boolean {
-  return value === '';
 }
 
 export function isFunction(value: any): boolean {
@@ -122,17 +115,17 @@ export function isEmpty(obj: any): boolean {
 }
 
 export function formatValue(value: any, dec?: number, units?: string, showZeroDecimals?: boolean): string | undefined {
-  if (isDefinedAndNotNull(value) && isNumeric(value) &&
-    (isDefinedAndNotNull(dec) || isDefinedAndNotNull(units) || Number(value).toString() === value)) {
+  if (isDefined(value) &&
+    value !== null && isNumeric(value)) {
     let formatted: string | number = Number(value);
-    if (isDefinedAndNotNull(dec)) {
+    if (isDefined(dec)) {
       formatted = formatted.toFixed(dec);
     }
     if (!showZeroDecimals) {
       formatted = (Number(formatted));
     }
     formatted = formatted.toString();
-    if (isDefinedAndNotNull(units) && units.length > 0) {
+    if (isDefined(units) && units.length > 0) {
       formatted += ' ' + units;
     }
     return formatted;
@@ -164,21 +157,28 @@ export function deleteNullProperties(obj: any) {
 
 export function objToBase64(obj: any): string {
   const json = JSON.stringify(obj);
-  return btoa(encodeURIComponent(json).replace(/%([0-9A-F]{2})/g,
-    function toSolidBytes(match, p1) {
-      return String.fromCharCode(Number('0x' + p1));
-    }));
-}
-
-export function objToBase64URI(obj: any): string {
-  return encodeURIComponent(objToBase64(obj));
+  const encoded = utf8Encode(json);
+  return base64js.fromByteArray(encoded);
 }
 
 export function base64toObj(b64Encoded: string): any {
-  const json = decodeURIComponent(atob(b64Encoded).split('').map((c) => {
-    return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-  }).join(''));
+  const encoded: Uint8Array | number[] = base64js.toByteArray(b64Encoded);
+  const json = utf8Decode(encoded);
   return JSON.parse(json);
+}
+
+function utf8Encode(str: string): Uint8Array | number[] {
+  let result: Uint8Array | number[];
+  if (isUndefined(Uint8Array)) {
+    result = utf8ToBytes(str);
+  } else {
+    result = new Uint8Array(utf8ToBytes(str));
+  }
+  return result;
+}
+
+function utf8Decode(bytes: Uint8Array | number[]): string {
+  return utf8Slice(bytes, 0, bytes.length);
 }
 
 const scrollRegex = /(auto|scroll)/;
@@ -268,6 +268,129 @@ function easeInOut(
   );
 }
 
+function utf8Slice(buf: Uint8Array | number[], start: number, end: number): string {
+  let res = '';
+  let tmp = '';
+  end = Math.min(buf.length, end || Infinity);
+  start = start || 0;
+
+  for (let i = start; i < end; i++) {
+    if (buf[i] <= 0x7F) {
+      res += decodeUtf8Char(tmp) + String.fromCharCode(buf[i]);
+      tmp = '';
+    } else {
+      tmp += '%' + buf[i].toString(16);
+    }
+  }
+  return res + decodeUtf8Char(tmp);
+}
+
+function decodeUtf8Char(str: string): string {
+  try {
+    return decodeURIComponent(str);
+  } catch (err) {
+    return String.fromCharCode(0xFFFD); // UTF 8 invalid char
+  }
+}
+
+function utf8ToBytes(input: string, units?: number): number[] {
+  units = units || Infinity;
+  let codePoint: number;
+  const length = input.length;
+  let leadSurrogate: number = null;
+  const bytes: number[] = [];
+  let i = 0;
+
+  for (; i < length; i++) {
+    codePoint = input.charCodeAt(i);
+
+    // is surrogate component
+    if (codePoint > 0xD7FF && codePoint < 0xE000) {
+      // last char was a lead
+      if (leadSurrogate) {
+        // 2 leads in a row
+        if (codePoint < 0xDC00) {
+          units -= 3;
+          if (units > -1) { bytes.push(0xEF, 0xBF, 0xBD); }
+          leadSurrogate = codePoint;
+          continue;
+        } else {
+          // valid surrogate pair
+          // tslint:disable-next-line:no-bitwise
+          codePoint = leadSurrogate - 0xD800 << 10 | codePoint - 0xDC00 | 0x10000;
+          leadSurrogate = null;
+        }
+      } else {
+        // no lead yet
+
+        if (codePoint > 0xDBFF) {
+          // unexpected trail
+          units -= 3;
+          if (units > -1) { bytes.push(0xEF, 0xBF, 0xBD); }
+          continue;
+        } else if (i + 1 === length) {
+          // unpaired lead
+          units -= 3;
+          if (units > -1) { bytes.push(0xEF, 0xBF, 0xBD); }
+          continue;
+        } else {
+          // valid lead
+          leadSurrogate = codePoint;
+          continue;
+        }
+      }
+    } else if (leadSurrogate) {
+      // valid bmp char, but last char was a lead
+      units -= 3;
+      if (units > -1) { bytes.push(0xEF, 0xBF, 0xBD); }
+      leadSurrogate = null;
+    }
+
+    // encode utf8
+    if (codePoint < 0x80) {
+      units -= 1;
+      if (units < 0) { break; }
+      bytes.push(codePoint);
+    } else if (codePoint < 0x800) {
+      units -= 2;
+      if (units < 0) { break; }
+      bytes.push(
+        // tslint:disable-next-line:no-bitwise
+        codePoint >> 0x6 | 0xC0,
+        // tslint:disable-next-line:no-bitwise
+        codePoint & 0x3F | 0x80
+      );
+    } else if (codePoint < 0x10000) {
+      units -= 3;
+      if (units < 0) { break; }
+      bytes.push(
+        // tslint:disable-next-line:no-bitwise
+        codePoint >> 0xC | 0xE0,
+        // tslint:disable-next-line:no-bitwise
+        codePoint >> 0x6 & 0x3F | 0x80,
+        // tslint:disable-next-line:no-bitwise
+        codePoint & 0x3F | 0x80
+      );
+    } else if (codePoint < 0x200000) {
+      units -= 4;
+      if (units < 0) { break; }
+      bytes.push(
+        // tslint:disable-next-line:no-bitwise
+        codePoint >> 0x12 | 0xF0,
+        // tslint:disable-next-line:no-bitwise
+        codePoint >> 0xC & 0x3F | 0x80,
+        // tslint:disable-next-line:no-bitwise
+        codePoint >> 0x6 & 0x3F | 0x80,
+        // tslint:disable-next-line:no-bitwise
+        codePoint & 0x3F | 0x80
+      );
+    } else {
+      throw new Error('Invalid code point');
+    }
+  }
+  return bytes;
+}
+
 export function deepClone<T>(target: T, ignoreFields?: string[]): T {
   if (target === null) {
     return target;
@@ -330,7 +453,7 @@ export function insertVariable(pattern: string, name: string, value: any): strin
     const variable = match[0];
     const variableName = match[1];
     if (variableName === name) {
-      result = result.replace(variable, value);
+      result = result.split(variable).join(value);
     }
     match = varsRegex.exec(pattern);
   }
@@ -347,17 +470,17 @@ export function createLabelFromDatasource(datasource: Datasource, pattern: strin
     const variable = match[0];
     const variableName = match[1];
     if (variableName === 'dsName') {
-      label = label.replace(variable, datasource.name);
+      label = label.split(variable).join(datasource.name);
     } else if (variableName === 'entityName') {
-      label = label.replace(variable, datasource.entityName);
+      label = label.split(variable).join(datasource.entityName);
     } else if (variableName === 'deviceName') {
-      label = label.replace(variable, datasource.entityName);
+      label = label.split(variable).join(datasource.entityName);
     } else if (variableName === 'entityLabel') {
-      label = label.replace(variable, datasource.entityLabel || datasource.entityName);
+      label = label.split(variable).join(datasource.entityLabel || datasource.entityName);
     } else if (variableName === 'aliasName') {
-      label = label.replace(variable, datasource.aliasName);
+      label = label.split(variable).join(datasource.aliasName);
     } else if (variableName === 'entityDescription') {
-      label = label.replace(variable, datasource.entityDescription);
+      label = label.split(variable).join(datasource.entityDescription);
     }
     match = varsRegex.exec(pattern);
   }
@@ -379,11 +502,4 @@ export function padValue(val: any, dec: number): string {
   }
   strVal = (n ? '-' : '') + strVal;
   return strVal;
-}
-
-export function sortObjectKeys<T>(obj: T): T {
-  return Object.keys(obj).sort().reduce((acc, key) => {
-    acc[key] = obj[key];
-    return acc;
-  }, {} as T);
 }

@@ -15,19 +15,23 @@
 ///
 
 import { LatLngTuple } from 'leaflet';
-import { Datasource } from '@app/shared/models/widget.models';
-import { EntityType } from '@shared/models/entity-type.models';
-import tinycolor from 'tinycolor2';
-
-export const DEFAULT_MAP_PAGE_SIZE = 16384;
+import { Datasource, JsonSettingsSchema } from '@app/shared/models/widget.models';
+import { Type } from '@angular/core';
+import LeafletMap from './leaflet-map';
+import { OpenStreetMap, TencentMap, GoogleMap, HEREMap, ImageMap } from './providers';
+import {
+    openstreetMapSettingsSchema, tencentMapSettingsSchema,
+    googleMapSettingsSchema, hereMapSettingsSchema, imageMapSettingsSchema
+} from './schemes';
 
 export type GenericFunction = (data: FormattedData, dsData: FormattedData[], dsIndex: number) => string;
 export type MarkerImageFunction = (data: FormattedData, dsData: FormattedData[], dsIndex: number) => string;
+export type GetTooltip = (point: FormattedData, setTooltip?: boolean) => string;
 export type PosFuncton = (origXPos, origYPos) => { x, y };
 
 export type MapSettings = {
     draggableMarker: boolean;
-    editablePolygon: boolean;
+    initCallback?: () => any;
     posFunction: PosFuncton;
     defaultZoomLevel?: number;
     disableScrollZooming?: boolean;
@@ -50,7 +54,7 @@ export type MapSettings = {
     markerClusteringSetting?;
     useDefaultCenterPosition?: boolean;
     gmDefaultMapType?: string;
-    useLabelFunction: boolean;
+    useLabelFunction: string;
     icon?: any;
     zoomOnClick: boolean,
     maxZoom: number,
@@ -61,8 +65,7 @@ export type MapSettings = {
     removeOutsideVisibleBounds: boolean,
     useCustomProvider: boolean,
     customProviderTileUrl: string;
-    mapPageSize: number;
-};
+}
 
 export enum MapProviders {
     google = 'google-map',
@@ -86,7 +89,6 @@ export type MarkerSettings = {
     useTooltipFunction: boolean;
     useColorFunction: boolean;
     color?: string;
-    tinyColor?: tinycolor.Instance;
     autocloseTooltip: boolean;
     showTooltipAction: string;
     useClusterMarkers: boolean;
@@ -103,28 +105,20 @@ export type MarkerSettings = {
     markerImageFunction?: MarkerImageFunction;
     markerOffsetX: number;
     markerOffsetY: number;
-};
+}
 
 export interface FormattedData {
     $datasource: Datasource;
     entityName: string;
-    entityId: string;
-    entityType: EntityType;
     dsIndex: number;
     deviceType: string;
-    [key: string]: any;
-}
-
-export interface ReplaceInfo {
-  variable: string;
-  valDec?: number;
-  dataKeyName: string;
+    [key: string]: any
 }
 
 export type PolygonSettings = {
     showPolygon: boolean;
     polygonKeyName: string;
-    polKeyName: string; // deprecated
+    polKeyName: string;// deprecated
     polygonStrokeOpacity: number;
     polygonOpacity: number;
     polygonStrokeWeight: number;
@@ -140,8 +134,7 @@ export type PolygonSettings = {
     usePolygonColorFunction: boolean;
     polygonTooltipFunction: GenericFunction;
     polygonColorFunction?: GenericFunction;
-    editablePolygon: boolean;
-};
+}
 
 export type PolylineSettings = {
     usePolylineDecorator: any;
@@ -166,7 +159,7 @@ export type PolylineSettings = {
     colorFunction: GenericFunction;
     strokeOpacityFunction: GenericFunction;
     strokeWeightFunction: GenericFunction;
-};
+}
 
 export interface HistorySelectSettings {
     buttonColor: string;
@@ -196,11 +189,45 @@ export type TripAnimationSettings = {
     pointAsAnchorFunction: GenericFunction;
     tooltipFunction: GenericFunction;
     labelFunction: GenericFunction;
-};
+}
 
 export type actionsHandler = ($event: Event, datasource: Datasource) => void;
 
 export type UnitedMapSettings = MapSettings & PolygonSettings & MarkerSettings & PolylineSettings & TripAnimationSettings;
+
+interface IProvider {
+    MapClass: Type<LeafletMap>,
+    schema: JsonSettingsSchema,
+    name: string
+}
+
+export const providerSets: { [key: string]: IProvider } = {
+    'openstreet-map': {
+        MapClass: OpenStreetMap,
+        schema: openstreetMapSettingsSchema,
+        name: 'openstreet-map',
+    },
+    'tencent-map': {
+        MapClass: TencentMap,
+        schema: tencentMapSettingsSchema,
+        name: 'tencent-map'
+    },
+    'google-map': {
+        MapClass: GoogleMap,
+        schema: googleMapSettingsSchema,
+        name: 'google-map'
+    },
+    here: {
+        MapClass: HEREMap,
+        schema: hereMapSettingsSchema,
+        name: 'here'
+    },
+    'image-map': {
+        MapClass: ImageMap,
+        schema: imageMapSettingsSchema,
+        name: 'image-map'
+    }
+};
 
 export const defaultSettings: any = {
     xPosKeyName: 'xPos',
@@ -235,14 +262,11 @@ export const defaultSettings: any = {
     credentials: '',
     markerClusteringSetting: null,
     draggableMarker: false,
-    editablePolygon: false,
-    fitMapBounds: true,
-    mapPageSize: DEFAULT_MAP_PAGE_SIZE
+    fitMapBounds: true
 };
 
 export const hereProviders = [
     'HERE.normalDay',
     'HERE.normalNight',
     'HERE.hybridDay',
-    'HERE.terrainDay'
-];
+    'HERE.terrainDay']

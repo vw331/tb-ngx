@@ -27,6 +27,25 @@
     list-style: none;
   }
 
+  .tb-side-menu.menu-mini {
+    a.mat-button {
+      line-height: 60px;
+    }
+    .mat-button-wrapper {
+      text-align: center;
+      mat-icon {
+        font-size: 30px;
+        width: 36px;
+        height: 60px;
+        line-height: 60px;
+        margin: 0 auto;
+      }
+      span {
+        text-indent: -999em;
+      }
+    }
+  }
+
   .tb-side-menu > li {
     border-bottom: 1px solid rgba(0, 0, 0, .12);
   }

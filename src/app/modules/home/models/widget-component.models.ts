@@ -57,7 +57,7 @@ import {
   NotificationType,
   NotificationVerticalPosition
 } from '@core/notification/notification.models';
-import { ActionNotificationHide, ActionNotificationShow } from '@core/notification/notification.actions';
+import { ActionNotificationShow } from '@core/notification/notification.actions';
 import { AuthUser } from '@shared/models/user.model';
 import { getCurrentAuthUser } from '@core/auth/auth.selectors';
 import { DeviceService } from '@core/http/device.service';
@@ -75,7 +75,6 @@ import { DatePipe } from '@angular/common';
 import { TranslateService } from '@ngx-translate/core';
 import { PageLink } from '@shared/models/page/page-link';
 import { SortOrder } from '@shared/models/page/sort-order';
-import { DomSanitizer } from '@angular/platform-browser';
 
 export interface IWidgetAction {
   name: string;
@@ -156,7 +155,6 @@ export class WidgetContext {
   date: DatePipe;
   translate: TranslateService;
   http: HttpClient;
-  sanitizer: DomSanitizer;
 
   private changeDetectorValue: ChangeDetectorRef;
 
@@ -246,20 +244,6 @@ export class WidgetContext {
     this.showToast('success', message, duration, verticalPosition, horizontalPosition, target);
   }
 
-  showInfoToast(message: string,
-                verticalPosition: NotificationVerticalPosition = 'bottom',
-                horizontalPosition: NotificationHorizontalPosition = 'left',
-                target?: string) {
-    this.showToast('info', message, undefined, verticalPosition, horizontalPosition, target);
-  }
-
-  showWarnToast(message: string,
-                verticalPosition: NotificationVerticalPosition = 'bottom',
-                horizontalPosition: NotificationHorizontalPosition = 'left',
-                target?: string) {
-    this.showToast('warn', message, undefined, verticalPosition, horizontalPosition, target);
-  }
-
   showErrorToast(message: string,
                  verticalPosition: NotificationVerticalPosition = 'bottom',
                  horizontalPosition: NotificationHorizontalPosition = 'left',
@@ -281,13 +265,6 @@ export class WidgetContext {
         target,
         panelClass: this.widgetNamespace,
         forceDismiss: true
-      }));
-  }
-
-  hideToast(target?: string) {
-    this.store.dispatch(new ActionNotificationHide(
-      {
-        target,
       }));
   }
 
@@ -325,7 +302,7 @@ export class WidgetContext {
 
   pageLink(pageSize: number, page: number = 0, textSearch: string = null, sortOrder: SortOrder = null): PageLink {
     return new PageLink(pageSize, page, textSearch, sortOrder);
-  }
+  };
 }
 
 export interface IDynamicWidgetComponent {

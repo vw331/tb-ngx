@@ -20,7 +20,8 @@ import {
   TranslateMessageFormatCompiler
 } from 'ngx-translate-messageformat-compiler';
 import { Inject, Injectable, Optional } from '@angular/core';
-import messageFormatParser from 'messageformat-parser';
+
+const parse = require('messageformat-parser').parse;
 
 @Injectable({ providedIn: 'root' })
 export class TranslateDefaultCompiler extends TranslateMessageFormatCompiler {
@@ -60,7 +61,7 @@ export class TranslateDefaultCompiler extends TranslateMessageFormatCompiler {
   private checkIsPlural(src: string): boolean {
     let tokens: any[];
     try {
-      tokens = messageFormatParser.parse(src.replace(/\{\{/g, '{').replace(/\}\}/g, '}'),
+      tokens = parse(src.replace(/\{\{/g, '{').replace(/\}\}/g, '}'),
         {cardinal: [], ordinal: []});
     } catch (e) {
       console.warn(`Failed to parse source: ${src}`);

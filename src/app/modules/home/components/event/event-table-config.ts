@@ -38,7 +38,6 @@ import {
   EventContentDialogComponent,
   EventContentDialogData
 } from '@home/components/event/event-content-dialog.component';
-import { sortObjectKeys } from '@core/utils';
 
 export class EventTableConfig extends EntityTableConfig<Event, TimePageLink> {
 
@@ -210,7 +209,7 @@ export class EventTableConfig extends EntityTableConfig<Event, TimePageLink> {
               icon: 'more_horiz',
               isEnabled: (entity) => entity.body.metadata ? entity.body.metadata.length > 0 : false,
               onAction: ($event, entity) => this.showContent($event, entity.body.metadata,
-                'event.metadata', ContentType.JSON, true)
+                'event.metadata', ContentType.JSON)
             },
             '40px'),
           new EntityActionTableColumn<Event>('error', 'event.error',
@@ -230,14 +229,9 @@ export class EventTableConfig extends EntityTableConfig<Event, TimePageLink> {
     }
   }
 
-  showContent($event: MouseEvent, content: string, title: string, contentType: ContentType = null, sortKeys = false): void {
+  showContent($event: MouseEvent, content: string, title: string, contentType: ContentType = null): void {
     if ($event) {
       $event.stopPropagation();
-    }
-    if (contentType === ContentType.JSON && sortKeys) {
-      try {
-        content = JSON.stringify(sortObjectKeys(JSON.parse(content)));
-      } catch (e) {}
     }
     this.dialog.open<EventContentDialogComponent, EventContentDialogData>(EventContentDialogComponent, {
       disableClose: true,

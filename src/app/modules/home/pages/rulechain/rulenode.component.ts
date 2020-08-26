@@ -17,8 +17,6 @@
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { Component, OnInit } from '@angular/core';
 import { FcNodeComponent } from 'ngx-flowchart/dist/ngx-flowchart';
-import { FcRuleNode, RuleNodeType } from '@shared/models/rule-node.models';
-import { Router } from '@angular/router';
 
 @Component({
   // tslint:disable-next-line:component-selector
@@ -29,10 +27,8 @@ import { Router } from '@angular/router';
 export class RuleNodeComponent extends FcNodeComponent implements OnInit {
 
   iconUrl: SafeResourceUrl;
-  RuleNodeType = RuleNodeType;
 
-  constructor(private sanitizer: DomSanitizer,
-              private router: Router) {
+  constructor(private sanitizer: DomSanitizer) {
     super();
   }
 
@@ -43,12 +39,4 @@ export class RuleNodeComponent extends FcNodeComponent implements OnInit {
     }
   }
 
-  openRuleChain($event: Event, node: FcRuleNode) {
-    if ($event) {
-      $event.stopPropagation();
-    }
-    if (node.targetRuleChainId) {
-      this.router.navigateByUrl(`/ruleChains/${node.targetRuleChainId}`);
-    }
-  }
 }

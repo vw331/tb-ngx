@@ -118,18 +118,16 @@
             </mat-form-field>
             <mat-form-field class="mat-block">
               <mat-label translate>admin.proxy-password</mat-label>
-              <input matInput type="password" formControlName="proxyPassword" autocomplete="new-proxy-password">
+              <input matInput formControlName="proxyPassword">
             </mat-form-field>
           </div>
           <mat-form-field class="mat-block">
             <mat-label translate>common.username</mat-label>
-            <input matInput formControlName="username" placeholder="{{ 'common.enter-username' | translate }}"
-                   autocomplete="new-username"/>
+            <input matInput formControlName="username" placeholder="{{ 'common.enter-username' | translate }}"/>
           </mat-form-field>
           <mat-form-field class="mat-block">
             <mat-label translate>common.password</mat-label>
-            <input matInput formControlName="password" type="password"
-                   placeholder="{{ 'common.enter-password' | translate }}" autocomplete="new-password"/>
+            <input matInput formControlName="password" type="password" placeholder="{{ 'common.enter-password' | translate }}"/>
           </mat-form-field>
           <div fxLayout="row" fxLayoutAlign="end center" fxLayout.xs="column" fxLayoutAlign.xs="end" fxLayoutGap="16px">
             <button mat-raised-button type="button"

@@ -254,8 +254,7 @@ export class EntitiesTableComponent extends PageComponent implements AfterViewIn
     if (this.displayPagination) {
       this.sortSubscription = this.sort.sortChange.subscribe(() => this.paginator.pageIndex = 0);
     }
-    this.updateDataSubscription = ((this.displayPagination ? merge(this.sort.sortChange, this.paginator.page)
-      : this.sort.sortChange) as Observable<any>)
+    this.updateDataSubscription = (this.displayPagination ? merge(this.sort.sortChange, this.paginator.page) : this.sort.sortChange)
       .pipe(
         tap(() => this.updateData())
       )

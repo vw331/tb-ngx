@@ -186,27 +186,28 @@
 //    }
 //
 //    function getEntityInfo() {
-//         widgetContext.rxjs.forkJoin([
-//             entityRelationService.findInfoByFrom(entityId),
-//             entityRelationService.findInfoByTo(entityId),
-//             attributeService.getEntityAttributes(entityId, 'SERVER_SCOPE'),
-//             entityService.getEntity(entityId.entityType, entityId.id)
-//         ]).subscribe(
-//             function (data) {
-//                 getEntityRelations(data.slice(0,2));
-//                 getEntityAttributes(data[2]);
-//                 vm.entity = data[3];
-//                 vm.editEntityFormGroup.patchValue({
-//                     entityName: vm.entity.name,
-//                     entityType: vm.entityType,
-//                     entityLabel: vm.entity.label,
-//                     type: vm.entity.type,
-//                     attributes: vm.attributes,
-//                     oldRelations: vm.oldRelationsData
-//                 }, {emitEvent: false});
-//             }
-//         );
-//     }
+//        entityService.getEntity(entityId.entityType, entityId.id).subscribe(function (entity) {
+//            vm.entity = entity;
+//            widgetContext.rxjs.forkJoin([
+//                entityRelationService.findInfoByFrom(entityId),
+//                entityRelationService.findInfoByTo(entityId),
+//                attributeService.getEntityAttributes(entityId, 'SERVER_SCOPE')
+//            ]).subscribe(
+//                function (data) {
+//                    getEntityRelations(data.slice(0,2));
+//                    getEntityAttributes(data[2]);
+//                    vm.editEntityFormGroup.patchValue({
+//                        entityName: vm.entity.name,
+//                        entityType: vm.entityType,
+//                        entityLabel: vm.entity.label,
+//                        type: vm.entity.type,
+//                        attributes: vm.attributes,
+//                        oldRelations: vm.oldRelationsData
+//                    }, {emitEvent: false});
+//                }
+//            );
+//        });
+//    }
 //
 //    function saveEntity() {
 //        const formValues = vm.editEntityFormGroup.value;
@@ -217,8 +218,9 @@
 //            } else if (formValues.entityType == 'DEVICE') {
 //                return deviceService.saveDevice(vm.entity);
 //            }
+//        } else {
+//            return widgetContext.rxjs.of([]);
 //        }
-//        return widgetContext.rxjs.of([]);
 //    }
 //
 //    function saveAttributes(entityId) {
@@ -231,8 +233,9 @@
 //        }
 //        if (attributesArray.length > 0) {
 //            return attributeService.saveEntityAttributes(entityId, "SERVER_SCOPE", attributesArray);
+//        } else {
+//            return widgetContext.rxjs.of([]);
 //        }
-//        return widgetContext.rxjs.of([]);
 //    }
 //
 //    function saveRelations(entityId) {
@@ -267,8 +270,9 @@
 //        }
 //        if (tasks.length > 0) {
 //            return widgetContext.rxjs.forkJoin(tasks);
+//        } else {
+//            return widgetContext.rxjs.of([]);
 //        }
-//        return widgetContext.rxjs.of([]);
 //    }
 //}
 //
@@ -376,8 +380,9 @@
 //        }
 //        if (attributesArray.length > 0) {
 //            return attributeService.saveEntityAttributes(entityId, "SERVER_SCOPE", attributesArray);
+//        } else {
+//            return widgetContext.rxjs.of([]);
 //        }
-//        return widgetContext.rxjs.of([]);
 //    }
 //
 //    function saveRelations(entityId) {
@@ -399,7 +404,8 @@
 //        }
 //        if (tasks.length > 0) {
 //            return widgetContext.rxjs.forkJoin(tasks);
+//        } else {
+//            return widgetContext.rxjs.of([]);
 //        }
-//        return widgetContext.rxjs.of([]);
 //    }
 //}

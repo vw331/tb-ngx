@@ -16,26 +16,26 @@
 
 import { COMMA, ENTER, SEMICOLON } from '@angular/cdk/keycodes';
 import {
-    AfterViewInit,
-    Component,
-    ElementRef,
-    forwardRef,
-    Input,
-    OnChanges,
-    OnInit,
-    SimpleChanges,
-    SkipSelf,
-    ViewChild
+  AfterViewInit,
+  Component,
+  ElementRef,
+  forwardRef,
+  Input,
+  OnChanges,
+  OnInit,
+  SimpleChanges,
+  SkipSelf,
+  ViewChild
 } from '@angular/core';
 import {
-    ControlValueAccessor,
-    FormBuilder,
-    FormControl,
-    FormGroup,
-    FormGroupDirective,
-    NG_VALUE_ACCESSOR,
-    NgForm,
-    Validators
+  ControlValueAccessor,
+  FormBuilder,
+  FormControl,
+  FormGroup,
+  FormGroupDirective,
+  NG_VALUE_ACCESSOR,
+  NgForm,
+  Validators
 } from '@angular/forms';
 import { Observable, of } from 'rxjs';
 import { filter, map, mergeMap, share, tap } from 'rxjs/operators';
@@ -56,8 +56,8 @@ import { TruncatePipe } from '@shared/pipe/truncate.pipe';
 import { DialogService } from '@core/services/dialog.service';
 import { MatDialog } from '@angular/material/dialog';
 import {
-    DataKeyConfigDialogComponent,
-    DataKeyConfigDialogData
+  DataKeyConfigDialogComponent,
+  DataKeyConfigDialogData
 } from '@home/components/widget/data-key-config-dialog.component';
 import { deepClone } from '@core/utils';
 import { MatChipDropEvent } from '@app/shared/components/mat-chip-draggable.directive';
@@ -155,6 +155,10 @@ export class DataKeysComponent implements ControlValueAccessor, OnInit, AfterVie
               private dialog: MatDialog,
               private fb: FormBuilder,
               public truncate: TruncatePipe) {
+    this.keysListFormGroup = this.fb.group({
+      keys: [null, this.required ? [Validators.required] : []],
+      key: [null]
+    });
   }
 
   updateValidators() {
@@ -170,10 +174,6 @@ export class DataKeysComponent implements ControlValueAccessor, OnInit, AfterVie
   }
 
   ngOnInit() {
-    this.keysListFormGroup = this.fb.group({
-        keys: [null, this.required ? [Validators.required] : []],
-        key: [null]
-    });
     this.alarmKeys = [];
     for (const name of Object.keys(alarmFields)) {
       this.alarmKeys.push({
@@ -218,6 +218,11 @@ export class DataKeysComponent implements ControlValueAccessor, OnInit, AfterVie
   }
 
   private updateParams() {
+    if (this.widgetType === widgetType.alarm) {
+      this.dataKeyType = DataKeyType.alarm;
+      this.placeholder = this.translate.instant('datakey.alarm');
+      this.requiredText = this.translate.instant('datakey.alarm-fields-required');
+    } else {
       if (this.datasourceType === DatasourceType.function) {
         this.dataKeyType = DataKeyType.function;
         this.placeholder = this.translate.instant('datakey.function-types');
@@ -226,15 +231,13 @@ export class DataKeysComponent implements ControlValueAccessor, OnInit, AfterVie
         if (this.widgetType === widgetType.latest) {
           this.dataKeyType = null;
           this.requiredText = this.translate.instant('datakey.timeseries-or-attributes-required');
-        } else if (this.widgetType === widgetType.alarm) {
-          this.dataKeyType = null;
-          this.requiredText = this.translate.instant('datakey.alarm-fields-timeseries-or-attributes-required');
         } else {
           this.dataKeyType = DataKeyType.timeseries;
           this.requiredText = this.translate.instant('datakey.timeseries-required');
         }
         this.placeholder = '';
       }
+    }
   }
 
   private reset() {
@@ -384,7 +387,6 @@ export class DataKeysComponent implements ControlValueAccessor, OnInit, AfterVie
           dataKey: deepClone(key),
           dataKeySettingsSchema: this.datakeySettingsSchema,
           entityAliasId: this.entityAliasId,
-          showPostProcessing: this.widgetType !== widgetType.alarm,
           callbacks: this.callbacks
         }
       }).afterClosed().subscribe((updatedDataKey) => {
@@ -398,7 +400,7 @@ export class DataKeysComponent implements ControlValueAccessor, OnInit, AfterVie
   }
 
   createKey(name: string, dataKeyType: DataKeyType = this.dataKeyType) {
-    this.addFromChipValue({name: name ? name.trim() : '', type: dataKeyType});
+    this.addFromChipValue({name, type: dataKeyType});
   }
 
   displayKeyFn(key?: DataKey): string | undefined {
@@ -409,19 +411,16 @@ export class DataKeysComponent implements ControlValueAccessor, OnInit, AfterVie
     if (this.latestSearchTextResult === null || this.searchText !== searchText) {
       this.searchText = searchText;
       let fetchObservable: Observable<Array<DataKey>> = null;
-      if (this.datasourceType === DatasourceType.function) {
+      if (this.datasourceType === DatasourceType.function || this.widgetType === widgetType.alarm) {
         const dataKeyFilter = this.createDataKeyFilter(this.searchText);
         const targetKeysList = this.widgetType === widgetType.alarm ? this.alarmKeys : this.functionTypeKeys;
         fetchObservable = of(targetKeysList.filter(dataKeyFilter));
       } else {
         if (this.entityAliasId) {
           const dataKeyTypes = [DataKeyType.timeseries];
-          if (this.widgetType === widgetType.latest || this.widgetType === widgetType.alarm) {
+          if (this.widgetType === widgetType.latest) {
             dataKeyTypes.push(DataKeyType.attribute);
             dataKeyTypes.push(DataKeyType.entityField);
-            if (this.widgetType === widgetType.alarm) {
-                dataKeyTypes.push(DataKeyType.alarm);
-            }
           }
           fetchObservable = this.callbacks.fetchEntityKeys(this.entityAliasId, this.searchText, dataKeyTypes);
         } else {

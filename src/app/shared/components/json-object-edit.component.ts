@@ -194,19 +194,19 @@ export class JsonObjectEditComponent implements OnInit, ControlValueAccessor, Va
   }
 
   beautifyJSON() {
-    if (this.jsonEditor && this.objectValid) {
-      const res = JSON.stringify(this.modelValue, null, 2);
+    const res = JSON.stringify(this.modelValue, null, 2);
+    if (this.jsonEditor) {
       this.jsonEditor.setValue(res ? res : '', -1);
-      this.updateView();
     }
+    this.updateView();
   }
 
   minifyJSON() {
-    if (this.jsonEditor && this.objectValid) {
-      const res = JSON.stringify(this.modelValue);
+    const res = JSON.stringify(this.modelValue);
+    if (this.jsonEditor) {
       this.jsonEditor.setValue(res ? res : '', -1);
-      this.updateView();
     }
+    this.updateView();
   }
 
   writeValue(value: any): void {
@@ -254,7 +254,6 @@ export class JsonObjectEditComponent implements OnInit, ControlValueAccessor, Va
         this.objectValid = !this.required;
         this.validationError = this.required ? 'Json object is required.' : '';
       }
-      this.modelValue = data;
       this.propagateChange(data);
     }
   }
