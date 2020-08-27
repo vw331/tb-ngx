@@ -1,4 +1,5 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, EventEmitter, Output } from '@angular/core';
+
 
 type Theme = 'light' | 'dark';
 
@@ -12,11 +13,13 @@ export class ThemeMenuComponent implements OnInit {
 
   constructor() { }
 
+  @Output() change = new EventEmitter<Theme>();
+
   ngOnInit(): void {
   }
 
   changeTheme(theme: Theme) {
-    alert(theme)
+    this.change.emit(theme);
   }
 
 }

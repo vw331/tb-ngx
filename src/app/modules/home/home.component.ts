@@ -29,6 +29,7 @@ import * as _screenfull from 'screenfull';
 import { MatSidenav } from '@angular/material/sidenav';
 import { AuthState } from '@core/auth/auth.models';
 import { WINDOW } from '@core/services/window.service';
+import { ThemeService } from '@core/services/theme.service';
 import { instanceOfSearchableComponent, ISearchableComponent } from '@home/models/searchable-component.models';
 
 const screenfull = _screenfull as _screenfull.Screenfull;
@@ -49,6 +50,8 @@ export class HomeComponent extends PageComponent implements AfterViewInit, OnIni
 
   sidenavMode: 'over' | 'push' | 'side' = 'side';
   sidenavOpened = true;
+
+  isDarkTheme: Observable<boolean>;
 
   logo = require('../../../assets/logo_title_white.svg').default;
   logoMini = require('../../../assets/logo_white.svg').default;
@@ -71,6 +74,7 @@ export class HomeComponent extends PageComponent implements AfterViewInit, OnIni
 
   constructor(protected store: Store<AppState>,
               @Inject(WINDOW) private window: Window,
+              private themeService: ThemeService,
               public breakpointObserver: BreakpointObserver) {
     super(store);
   }
@@ -86,6 +90,8 @@ export class HomeComponent extends PageComponent implements AfterViewInit, OnIni
     const isGtSm = this.breakpointObserver.isMatched(MediaBreakpoints['gt-sm']);
     this.sidenavMode = isGtSm ? 'side' : 'over';
     this.sidenavOpened = isGtSm;
+
+    this.isDarkTheme = this.themeService.isDarkTheme;
 
     this.breakpointObserver
       .observe(MediaBreakpoints['gt-sm'])
@@ -168,6 +174,11 @@ export class HomeComponent extends PageComponent implements AfterViewInit, OnIni
         this.searchTextUpdated();
       }
     }
+  }
+
+  onThemeChange(themeType: string) {
+    console.log(themeType)
+    this.themeService.setDarkTheme( themeType === 'dark')
   }
 
   private searchTextUpdated() {
