@@ -3,6 +3,7 @@ import { Routes, RouterModule } from '@angular/router';
 
 import { Authority } from '@shared/models/authority.enum'
 import { HomeComponent  } from './home/home.component';
+import { EditorComponent } from './editor/editor.component';
 
 const routes: Routes = [
   {
@@ -19,6 +20,10 @@ const routes: Routes = [
       {
         path: 'home',
         component: HomeComponent
+      },
+      {
+        path: 'editor',
+        component: EditorComponent
       }
     ]
   }

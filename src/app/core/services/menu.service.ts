@@ -221,6 +221,18 @@ export class MenuService {
         icon: 'dashboards'
       },
       {
+        name: 'fuxa',
+        type: 'link',
+        path: '/fuxa',
+        icon: 'domain'
+      },
+      {
+        name: 'fuxa.edit',
+        type: 'link',
+        path: '/fuxa/editor',
+        icon: 'domain'
+      },
+      {
         name: 'audit-log.audit-logs',
         type: 'link',
         path: '/auditLogs',
