@@ -30,6 +30,7 @@ import { RuleChainModule } from '@modules/home/pages/rulechain/rulechain.module'
 import { WidgetLibraryModule } from '@modules/home/pages/widget/widget-library.module';
 import { DashboardModule } from '@modules/home/pages/dashboard/dashboard.module';
 import { DemoModule } from './demo/demo.module';
+import { FuxaModule } from './fuxa/fuxa.module';
 
 
 @NgModule({
@@ -47,11 +48,12 @@ import { DemoModule } from './demo/demo.module';
     DashboardModule,
     AuditLogModule,
     UserModule,
-    DemoModule
+    DemoModule,
+    FuxaModule
   ],
   declarations: [
     
   ],
-  imports: []
+  imports: [FuxaModule]
 })
 export class HomePagesModule { }

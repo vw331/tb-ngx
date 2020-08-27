@@ -37,7 +37,8 @@ const routes: Routes = [
 @NgModule({
   imports: [
     RouterModule.forChild(routes),
-    TestModule],
+    TestModule,
+  ],
   exports: [RouterModule]
 })
 export class PageNotFoundRoutingModule { }
