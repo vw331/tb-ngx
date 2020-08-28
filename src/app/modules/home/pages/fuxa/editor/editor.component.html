@@ -1,62 +1,37 @@
-<div *ngIf="isLoading" style="position:absolute;top:0px;left:0px;right:0px;bottom:0px;background-color:rgba(0,0,0,0.2); z-index: 99999;">
+<div *ngIf="isLoading"
+  style="position:absolute;top:0px;left:0px;right:0px;bottom:0px;background-color:rgba(0,0,0,0.2); z-index: 99999;">
   <!-- <mat-spinner mode="indeterminate" color="rgba(48,89,175,1)" diameter="50" 
           style="position: absolute;left: 50%;top: 50%;transform: translate(-50%, -50%);">
   </mat-spinner> -->
-  <mat-progress-bar mode="indeterminate" color="warn" style="position: absolute; top: 0px; left: 0px; right: 0px; z-index: 99999;">
+  <mat-progress-bar mode="indeterminate" color="warn"
+    style="position: absolute; top: 0px; left: 0px; right: 0px; z-index: 99999;">
   </mat-progress-bar>
 </div>
 <div id="svg_editor_container">
   <mat-drawer-container class="svg-workarea-container">
     <mat-drawer mode="side" opened="true" class="svg-sidenav leave-header-area">
       <mat-accordion multi="true">
-        <mat-expansion-panel class="svg-workarea-leftbar-p" 
-          (opened)="panelsState.panelView=true;savePanelState()" 
-          (closed)="panelsState.panelView=false;savePanelState()" 
-          hideToggle="true" 
-          [expanded]="panelsState.panelView"
-        >
-
+        <mat-expansion-panel class="svg-workarea-leftbar-p" (opened)="panelsState.panelView=true;savePanelState()"
+          (closed)="panelsState.panelView=false;savePanelState()" hideToggle="true" [expanded]="panelsState.panelView">
         </mat-expansion-panel>
       </mat-accordion>
     </mat-drawer>
     <mat-drawer-content>
       <div class="svg-tools-fly">
-        <mat-expansion-panel class="svg-workarea-fly-p" 
-          (opened)="panelPropertyIdOpenState = true" 
-          (closed)="panelPropertyIdOpenState = false" hideToggle="true" expanded="true" style="display:none">
-          <mat-expansion-panel-header class="svg-workarea-flybar-h">
-              <mat-panel-title>
-                  <mat-icon aria-label="Select" *ngIf="panelPropertyIdOpenState">expand_less</mat-icon>
-                  <mat-icon aria-label="Select" *ngIf="!panelPropertyIdOpenState">expand_more</mat-icon>
-                  <span>{{'editor.interactivity' | translate}}</span> <!-- INTERACTIVITY -->
-              </mat-panel-title>
-          </mat-expansion-panel-header>
-          <div id="_selected_panel">
-              <div class="_toolset">
-                  <label id="idLabel" title="{{'editor.interactivity-id-title' | translate}}" class="svg-property">
-                      <span>{{'editor.interactivity-id' | translate}}</span>
-                      <input id="elem_id" #selid class="attr_changer" data-attr="id" type="text" />
-                  </label>
-                  <label id="classLabel" title="{{'editor.interactivity-class-title' | translate}}" class="svg-property">
-                      <span>{{'editor.interactivity-class' | translate}}</span>
-                      <input id="elem_class" class="attr_changer" data-attr="class" type="text" />
-                  </label>
-              </div>
-          </div>
-        </mat-expansion-panel>
+       
       </div>
       <div id="svg_editor" style="z-index:-1">
         <div id="rulers">
           <div id="ruler_corner"></div>
           <div id="ruler_x">
-              <div>
-                  <canvas height="15"></canvas>
-              </div>
+            <div>
+              <canvas height="15"></canvas>
+            </div>
           </div>
           <div id="ruler_y">
-              <div>
-                  <canvas width="15"></canvas>
-              </div>
+            <div>
+              <canvas width="15"></canvas>
+            </div>
           </div>
         </div>
         <div id="workarea">
@@ -67,47 +42,95 @@
         <div id="tools_top" class="tools_panel">
           <div id="editor_panel">
             <div class="main-btn-sep"></div>
-            <button mat-button title="{{'editor.tools-launch-title' | translate}}" class="main-btn" (click)="onStartCurrent()">
-                <mat-icon aria-label="Launch Current View">play_arrow</mat-icon>
+            <button mat-button title="{{'editor.tools-launch-title' | translate}}" class="main-btn"
+              (click)="onStartCurrent()">
+              <mat-icon aria-label="Launch Current View">play_arrow</mat-icon>
             </button>
             <div class="main-btn-sep"></div>
-            <button mat-button title="{{'editor.tools-zoom-title' | translate}}" class="main-btn" (click)="onZoomSelect()">
-                <mat-icon aria-label="Zoom Tool [Ctrl+Up/Down]">zoom_in</mat-icon>
+            <button mat-button title="{{'editor.tools-zoom-title' | translate}}" class="main-btn"
+              (click)="onZoomSelect()">
+              <mat-icon aria-label="Zoom Tool [Ctrl+Up/Down]">zoom_in</mat-icon>
             </button>
-            <button mat-button title="{{'editor.tools-grid-title' | translate}}" class="main-btn" (click)="onShowGrid()">
-                <mat-icon aria-label="Show Hide Grid" *ngIf="!gridOn">grid_on</mat-icon>
-                <mat-icon aria-label="Show Hide Grid" *ngIf="gridOn">grid_off</mat-icon>
+            <button mat-button title="{{'editor.tools-grid-title' | translate}}" class="main-btn"
+              (click)="onShowGrid()">
+              <mat-icon aria-label="Show Hide Grid" *ngIf="!gridOn">grid_on</mat-icon>
+              <mat-icon aria-label="Show Hide Grid" *ngIf="gridOn">grid_off</mat-icon>
             </button>
             <div id="history_panel">
-                <button mat-button id="tool_undo" title="{{'editor.tools-undo-title' | translate}}" class="main-btn">
-                    <mat-icon aria-label="Undo [Z]">undo</mat-icon>
-                </button>
-                <button mat-button id="tool_redo" title="{{'editor.tools-redo-title' | translate}}" class="main-btn">
-                    <mat-icon aria-label="Redo [Y]">redo</mat-icon>
-                </button>
+              <button mat-button id="tool_undo" title="{{'editor.tools-undo-title' | translate}}" class="main-btn">
+                <mat-icon aria-label="Undo [Z]">undo</mat-icon>
+              </button>
+              <button mat-button id="tool_redo" title="{{'editor.tools-redo-title' | translate}}" class="main-btn">
+                <mat-icon aria-label="Redo [Y]">redo</mat-icon>
+              </button>
             </div>
           </div>
           <div id="selected_panel">
             <div class="main-btn-sep"></div>
             <button mat-button id="tool_clone" title="{{'editor.tools-clone-title' | translate}}" class="main-btn">
-                <mat-icon aria-label="Duplicate Element [D]">content_copy</mat-icon>
+              <mat-icon aria-label="Duplicate Element [D]">content_copy</mat-icon>
             </button>
             <button mat-button id="tool_delete" title="{{'editor.tools-delete-title' | translate}}" class="main-btn">
-                <mat-icon aria-label="Delete Element [Delete/Backspace]">content_cut</mat-icon>
+              <mat-icon aria-label="Delete Element [Delete/Backspace]">content_cut</mat-icon>
             </button>
-            <button mat-button id="tool_move_bottom" title="{{'editor.tools-movebottom-title' | translate}}" class="main-btn">
-                <span class="to-bottom"></span>
+            <button mat-button id="tool_move_bottom" title="{{'editor.tools-movebottom-title' | translate}}"
+              class="main-btn">
+              <span class="to-bottom"></span>
             </button>
             <button mat-button id="tool_move_top" title="{{'editor.tools-movetop-title' | translate}}" class="main-btn">
-                <span class="to-top"></span>
+              <span class="to-top"></span>
             </button>
             <button mat-button id="tool_topath" title="{{'editor.tools-topath-title' | translate}}" class="main-btn">
-                <mat-icon>linear_scale</mat-icon>
+              <mat-icon>linear_scale</mat-icon>
             </button>
-            <button mat-button id="tool_make_link" title="{{'editor.tools-hyperlink-title' | translate}}" class="main-btn" (click)="onMakeHyperlink()">
-                <mat-icon>link</mat-icon>
+            <button mat-button id="tool_make_link" title="{{'editor.tools-hyperlink-title' | translate}}"
+              class="main-btn" (click)="onMakeHyperlink()">
+              <mat-icon>link</mat-icon>
             </button>
-        </div>
+          </div>
+          <div id="multiselected_panel">
+            <div class="main-btn-sep"></div>
+            <button mat-button id="tool_clone_multi" title="{{'editor.tools-clonemulti-title' | translate}}" class="main-btn">
+                <mat-icon aria-label="Clone Elements [C]">content_copy</mat-icon>
+            </button>
+            <button mat-button id="tool_delete_multi" title="{{'editor.tools-deletemulti-title' | translate}}" class="main-btn">
+                <mat-icon aria-label="Delete Selected Elements [Delete/Backspace]">content_cut</mat-icon>
+            </button>
+            <button mat-button id="tool_group_elements" title="{{'editor.tools-group-title' | translate}}" class="main-btn">
+                <span class="group"></span>
+            </button>
+            <button mat-button id="tool_alignleft" title="{{'editor.tools-alignleft-title' | translate}}" class="main-btn">
+                <mat-icon>format_align_left</mat-icon>
+            </button>
+            <button mat-button id="tool_aligncenter" title="{{'editor.tools-aligncenter-title' | translate}}" class="main-btn">
+                <mat-icon>format_align_center</mat-icon>
+            </button>
+            <button mat-button id="tool_alignright" title="{{'editor.tools-alignright-title' | translate}}" class="main-btn">
+                <mat-icon>format_align_right</mat-icon>
+            </button>
+            <button mat-button id="tool_aligntop" title="{{'editor.tools-aligntop-title' | translate}}" class="main-btn">
+                <mat-icon>vertical_align_top</mat-icon>
+            </button>
+            <button mat-button id="tool_alignmiddle" title="{{'editor.tools-alignmiddle-title' | translate}}" class="main-btn">
+                <mat-icon>vertical_align_center</mat-icon>
+            </button>
+            <button mat-button id="tool_alignbottom" title="{{'editor.tools-alignbottom-title' | translate}}" class="main-btn">
+                <mat-icon>vertical_align_bottom</mat-icon>
+            </button>
+          </div>
+          <div id="threemoreselected_panel">
+            <button mat-button id="tool_dividevertical" title="{{'editor.tools-dividevertical-title' | translate}}" class="main-btn">
+              <mat-icon>format_line_spacing</mat-icon>
+            </button>
+            <button mat-button id="tool_dividehorizontal" title="{{'editor.tools-dividehorizontal-title' | translate}}" class="main-btn">
+              <mat-icon style="transform-origin: center center;transform: rotate(90deg);">format_line_spacing</mat-icon>
+            </button>
+          </div>
+          <div id="g_panel">
+            <button mat-button id="tool_ungroup" title="{{'editor.tools-ungroup-title' | translate}}" class="main-btn">
+              <span class="ungroup"></span>
+            </button>
+          </div>
         </div>
 
         <!-- tools_top -->
@@ -117,6 +140,49 @@
 
         <!-- tool bottom -->
         <div class="bottom-bar tools_panel">
+          <div class="zoom-menu" title="zool level">
+            <div class="zoom-value">
+                <input id="zoom" size="3" value="100" type="text" #zoomValue hidden />
+                <!-- <span id="zoomLabel">{{zoomValue.value}} %</span> -->
+                <div id="zoom_dropdown" class="dropdown selection" style="margin-top: 0px; margin-bottom: 0px;margin-right: 0px;">
+                  <button style="margin-top: 2px; width: 80px;cursor: pointer; font-size: 12px;">
+                      {{zoomValue.value}} %
+                  </button>
+                  <ul>
+                    <li>1000%</li>
+                    <li>400%</li>
+                    <li>200%</li>
+                    <li>100%</li>
+                    <li>50%</li>
+                    <li>25%</li>
+                    <li id="fit_to_canvas" data-val="canvas">Fit to canvas</li>
+                    <li id="fit_to_sel" data-val="selection">Fit to selection</li>
+                    <!-- <li id="fit_to_layer_content" data-val="layer">Fit to layer content</li> -->
+                    <li id="fit_to_all" data-val="content">Fit to all content</li>
+                    <li>100%</li>
+                  </ul>
+                </div>
+            </div>
+          </div>
+
+          <div id="tools_bottom_2" class="colors">
+            <input readonly [(colorPicker)]="colorFill" class="color-fill" title="fillcolor" [style.background]="colorFill" [cpAlphaChannel]="'always'" [cpPosition]="'top'" (colorPickerChange)="onChangeFillColor($event)" [cpPresetColors]="defaultColor" [cpCancelButton]="true" [cpCancelButtonClass]="'cpCancelButtonClass'" [cpCancelButtonText]="'Cancel'" [cpOKButton]="true" [cpOKButtonText]="'OK'" [cpOKButtonClass]="'cpOKButtonClass'" />
+            <input readonly [(colorPicker)]="colorStroke" class="color-stroke" title="strokecolor" [style.background]="colorStroke" [cpAlphaChannel]="'always'" [cpPosition]="'top'" (colorPickerChange)="onChangeStrokeColor($event)" [cpPresetColors]="defaultColor" [cpCancelButton]="true" [cpCancelButtonClass]="'cpCancelButtonClass'" [cpCancelButtonText]="'Cancel'" [cpOKButton]="true" [cpOKButtonText]="'OK'" [cpOKButtonClass]="'cpOKButtonClass'" />
+            <!-- <div id="color_tools"> -->
+            <div class="color_tool" id="tool_fill" hidden>
+                <label class="icon_label" for="fill_color" title="{{'editor.tools-fillcolor-title' | translate}}"></label>
+                <div class="color_block">
+                    <div id="fill_color" class="color_block" [style.border-color]="colorFill"></div>
+                </div>
+            </div>
+          </div>
+          
+          <div id="tools_bottom_3" class="colors-palette">
+            <div id="palette_holder">
+                <div id="palette" title="{{'editor.tools-palettecolor-title' | translate}}"></div>
+            </div>
+          </div>
+
         </div>
 
         <div id="option_lists" class="dropdown">

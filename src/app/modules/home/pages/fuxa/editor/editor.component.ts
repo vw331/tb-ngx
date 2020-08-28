@@ -17,6 +17,9 @@ export class EditorComponent implements OnInit {
     panelD: true,
     panelS: true
   };
+  panelPropertyTransformOpenState: boolean
+  colorFill: string = '#FFFFFF'
+  colorStroke: string = '#000000'
   constructor() { }
 
   ngOnInit(): void {
@@ -26,6 +29,22 @@ export class EditorComponent implements OnInit {
     if (this.panelsState.enabled) {
         localStorage.setItem("@frango.webeditor.panelsState", JSON.stringify(this.panelsState));
     }
+  }
+
+  onAddView() {
+
+  }
+
+  onImportView() {
+
+  }
+
+  onViewFileChangeListener() {
+
+  }
+
+  onMakeHyperlink() {
+
   }
 
 }
